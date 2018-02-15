@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:gravity="center"
+    android:padding="20dp"
+    tools:context="com.vardemin.faceauth.ui.activity.MainActivity">
+
+    <Button
+        android:id="@+id/btn_add"
+        android:layout_width="match_parent"
+        android:layout_height="50dp"
+        style="@style/Base.Widget.AppCompat.Button.Borderless.Colored"
+        android:text="Add User"
+        android:drawableLeft="@drawable/ic_add"
+        android:layout_margin="10dp"/>
+    <Button
+        android:id="@+id/btn_edit"
+        android:layout_width="match_parent"
+        android:layout_height="50dp"
+        style="@style/Base.Widget.AppCompat.Button.Borderless.Colored"
+        android:text="Edit config"
+        android:layout_margin="10dp"
+        android:drawableLeft="@drawable/ic_edit" />
+
+
+</LinearLayout>

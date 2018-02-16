@@ -17,9 +17,9 @@ android {
         externalNativeBuild {
             cmake {
                 arguments "-DANDROID_PLATFORM=android-17",
-                          "-DANDROID_TOOLCHAIN=clang",
-                          "-DANDROID_STL=c++_shared",
-                          "-DANDROID_CPP_FEATURES=rtti exceptions"
+                            "-DANDROID_TOOLCHAIN=clang",
+                            "-DANDROID_STL=c++_shared",
+                            "-DANDROID_CPP_FEATURES=rtti exceptions"
                 // Enables exception-handling support.
 //                cppFlags "-fexceptions -std=c++11"
             }
@@ -29,8 +29,7 @@ android {
     // Let gradle pack the shared library into apk.
     sourceSets {
         main {
-            jniLibs.srcDirs = ["src/main/cppLibs/dlib/lib",
-                               "src/main/cppLibs/protobuf/lib"]
+            jniLibs.srcDirs = ["src/main/cppLibs/dlib/lib"]
         }
     }
     externalNativeBuild {
@@ -43,6 +42,7 @@ android {
     packagingOptions {
         pickFirst "**/libc++_shared.so"
     }
+
 
     buildTypes {
         debug {

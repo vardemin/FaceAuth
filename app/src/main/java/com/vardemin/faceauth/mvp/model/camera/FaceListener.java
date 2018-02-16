@@ -8,4 +8,6 @@ public interface FaceListener {
     void onMissingFace();
 
     void onFaceUpdate(FacePosition position);
+
+    void onUnrecognizedPose();
 }

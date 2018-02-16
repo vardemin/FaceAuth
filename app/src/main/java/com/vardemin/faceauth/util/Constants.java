@@ -15,4 +15,10 @@ public class Constants {
         String targetPath = sdcard.getAbsolutePath() + File.separator + "shape_predictor_68_face_landmarks.dat";
         return targetPath;
     }
+
+    public static String getFaceModelPath() {
+        File sdcard = Environment.getExternalStorageDirectory();
+        String targetPath = sdcard.getAbsolutePath() + File.separator + "dlib_face_recognition_resnet_model_v1.dat";
+        return targetPath;
+    }
 }

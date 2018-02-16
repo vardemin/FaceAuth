@@ -1,32 +1,45 @@
- // Copyright (c) 2017-present boyw165
-//
-// Permission is hereby granted, free of charge, to any person obtaining a copy
-// of this software and associated documentation files (the "Software"), to deal
-// in the Software without restriction, including without limitation the rights
-// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-// copies of the Software, and to permit persons to whom the Software is
-// furnished to do so, subject to the following conditions:
-//
-//    The above copyright notice and this permission notice shall be included in
-// all copies or substantial portions of the Software.
-//
-//    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-// THE SOFTWARE.
-
-#include <jni.h>
 #include <android/log.h>
 #include <android/bitmap.h>
 #include <dlib/image_processing/frontal_face_detector.h>
 #include <dlib/image_processing.h>
 #include <dlib/image_io.h>
-#include <my/jni.h>
-#include <my/profiler.h>
-#include <my/dlib/data/messages.pb.h>
+#include <dlib/dnn.h>
+#include <dlib/clustering.h>
+
+using namespace dlib;
+using namespace std;
+
+// ----------------------------------------------------------------------------------------
+template<template<int, template<typename> class, int, typename> class block, int N,
+        template<typename> class BN, typename SUBNET>
+using residual = add_prev1<block<N, BN, 1, tag1<SUBNET>>>;
+
+template<template<int, template<typename> class, int, typename> class block, int N,
+        template<typename> class BN, typename SUBNET>
+using residual_down = add_prev2<avg_pool<2, 2, 2, 2, skip1<tag2<block<N, BN, 2, tag1<SUBNET>>>>>>;
+
+template<int N, template<typename> class BN, int stride, typename SUBNET>
+using block  = BN<con<N, 3, 3, 1, 1, relu<BN<con<N, 3, 3, stride, stride, SUBNET>>>>>;
+
+template<int N, typename SUBNET> using ares      = relu<residual<block, N, affine, SUBNET>>;
+template<int N, typename SUBNET> using ares_down = relu<residual_down<block, N, affine, SUBNET>>;
+
+template<typename SUBNET> using alevel0 = ares_down<256, SUBNET>;
+template<typename SUBNET> using alevel1 = ares<256, ares<256, ares_down<256, SUBNET>>>;
+template<typename SUBNET> using alevel2 = ares<128, ares<128, ares_down<128, SUBNET>>>;
+template<typename SUBNET> using alevel3 = ares<64, ares<64, ares<64, ares_down<64, SUBNET>>>>;
+template<typename SUBNET> using alevel4 = ares<32, ares<32, ares<32, SUBNET>>>;
+
+using anet_type = loss_metric<fc_no_bias<128, avg_pool_everything<
+        alevel0<alevel1<alevel2<alevel3<alevel4<max_pool<3, 3, 2, 2, relu<affine<con<32, 7, 7, 2, 2,
+                input_rgb_image_sized<150>>>>>>>>>>>>>;
+
+// ----------------------------------------------------------------------------------------
+
+void throwException(JNIEnv *env, const char *message) {
+    jclass Exception = env->FindClass("java/lang/RuntimeException");
+    env->ThrowNew(Exception, message);
+}
 
 #define LOGI(...) \
   ((void)__android_log_print(ANDROID_LOG_INFO, "dlib-jni:", __VA_ARGS__))
@@ -34,14 +47,107 @@
 #define JNI_METHOD(NAME) \
     Java_com_my_jni_dlib_DLibLandmarks68Detector_##NAME
 
-using namespace ::com::my::jni::dlib::data;
+
+void convertNV21ToArray2d(JNIEnv* env, dlib::array2d<dlib::rgb_pixel>& out,
+                          jbyteArray data, jint width, jint height) {
+    jbyte* yuv = env->GetByteArrayElements(data, 0);
+    int frameSize = width * height;
+    int y, u, v, uvIndex;
+    int r, g, b;
+
+    out.set_size((long) height, (long) width);
+
+    for(int row = 0; row < height; row++) {
+        for(int column = 0; column < width; column++) {
+            uvIndex = frameSize + (row >> 1) * width + (column & ~1);
+            y = 0xff & yuv[row * width + column] - 16;
+            v = 0xff & yuv[uvIndex] - 128;
+            u = 0xff & yuv[uvIndex+1] - 128;
+
+            y = y < 0 ? 0 : 1164 * y;
+
+            r = y + 1596 * v;
+            g = y - 813 * v - 391 * u;
+            b = y + 2018 * u;
+
+            out[row][column].red = (unsigned char)(r < 0 ? 0 : r > 255000 ? 255 : r/1000);
+            out[row][column].green = (unsigned char)(g < 0 ? 0 : g > 255000 ? 255 : g/1000);
+            out[row][column].blue = (unsigned char)(b < 0 ? 0 : b > 255000 ? 255 : b/1000);
+        }
+    }
+}
+
+
+void downScaleNV21(JNIEnv* env, jclass obj,
+                   jbyteArray data, jint width, jint height) {
+    int width_ds = width/2;
+    int height_ds = height/2;
+    jbyte* yuv = env->GetByteArrayElements(data, 0);
+    jbyte* yuv_ds = new jbyte[((width/2) * (height/2) * 3) / 2];
+    int frameSize = width * height;
+    int frameSize_ds = width_ds * height_ds;
+
+    int y1, y2, y3, y4;
+    int u, v;
+    int uvIndex, uvIndex1, uvIndex2, uvIndex3, uvIndex4;
+
+    for(int row =0, row_ds = 0; row < height; row=+4, row_ds+=2) {
+        for(int column = 0, column_ds = 0; column < width; column=+4, column_ds+=2) {
+
+            //      0     1     2     3
+            //    ______________________
+            // 0 | y1a | y1b | y2a | y2b |
+            //   |-----+-----|-----+-----|          ____ ____
+            // 1 | y1c | y1d | y2c | y2d |         | y1 | y2 |
+            //    -----------+-----------     ->    ----+----
+            // 2 | y3a | y3b | y4a | y4b |         | y3 | y4 |
+            //   |-----+-----|-----+-----|          ---- ----
+            // 3 | y3c | y3d | y4c | y4d |
+            //    ----------- -----------
+
+            y1 = (yuv[row * width + column] +               // y1a
+                  yuv[row * width + (column + 1)] +         // y1b
+                  yuv[(row + 1) * width + column] +         // y1c
+                  yuv[(row + 1) * width + (column + 1)])/4; // y1d
+
+            y2 = (yuv[row * width + (column + 2)] +         // y2a
+                  yuv[row * width + (column + 3)] +         // y2b
+                  yuv[(row + 1) * width + (column + 2)] +   // y2c
+                  yuv[(row + 1) * width + (column + 3)])/4; // y2d
+
+            y3 = (yuv[(row + 2) * width + column] +         // y3a
+                  yuv[(row + 2) * width + (column + 1)] +   // y3b
+                  yuv[(row + 3) * width + column] +         // y3c
+                  yuv[(row + 3) * width + (column + 1)])/4; // y3d
+
+            y4 = (yuv[(row + 2) * width + (column + 2)] +   // y4a
+                  yuv[(row + 2) * width + (column + 3)] +   // y4b
+                  yuv[(row + 3) * width + (column + 2)] +   // y4c
+                  yuv[(row + 3) * width + (column + 3)])/4; // y4d
+
+            uvIndex1 = frameSize + (row >> 1) * width + (column & ~1);
+            uvIndex2 = frameSize + (row >> 1) * width + ((column + 2) & ~1);
+            uvIndex3 = frameSize + ((row + 2) >> 1) * width + (column & ~1);
+            uvIndex4 = frameSize + ((row + 2) >> 1) * width + ((column + 2) & ~1);
+            uvIndex = frameSize_ds + (row_ds >> 1) * width_ds + (column_ds & ~1);
+
+            v = (yuv[uvIndex1] + yuv[uvIndex2] + yuv[uvIndex3] + yuv[uvIndex4])/4;
+            u = (yuv[uvIndex1+1] + yuv[uvIndex2+1] + yuv[uvIndex3+1] + yuv[uvIndex4+1])/4;
+
+            yuv_ds[row * width + column] = (jbyte) y1;
+            yuv_ds[row * width + (column + 1)] = (jbyte) y2;
+            yuv_ds[(row + 1) * width + column] = (jbyte) y3;
+            yuv_ds[(row + 1) * width + (column + 1)] = (jbyte) y4;
+            yuv_ds[uvIndex] = (jbyte) v;
+            yuv_ds[uvIndex + 1] = (jbyte) u;
+        }
+    }
+}
 
 // FIXME: Create a class inheriting from dlib::array2d<dlib::rgb_pixel>.
-void convertBitmapToArray2d(JNIEnv* env,
-                            jobject bitmap,
-                            dlib::array2d<dlib::rgb_pixel>& out) {
+void convertBitmapToArray2d(JNIEnv *env, jobject bitmap, dlib::array2d<dlib::rgb_pixel> &out) {
     AndroidBitmapInfo bitmapInfo;
-    void* pixels;
+    void *pixels;
     int state;
 
     if (0 > (state = AndroidBitmap_getInfo(env, bitmap, &bitmapInfo))) {
@@ -63,10 +169,10 @@ void convertBitmapToArray2d(JNIEnv* env,
     LOGI("L%d: info.width=%d, info.height=%d", __LINE__, bitmapInfo.width, bitmapInfo.height);
     out.set_size((long) bitmapInfo.height, (long) bitmapInfo.width);
 
-    char* line = (char*) pixels;
+    char *line = (char *) pixels;
     for (int h = 0; h < bitmapInfo.height; ++h) {
         for (int w = 0; w < bitmapInfo.width; ++w) {
-            uint32_t* color = (uint32_t*) (line + 4 * w);
+            uint32_t *color = (uint32_t *) (line + 4 * w);
 
             out[h][w].red = (unsigned char) (0xFF & ((*color) >> 24));
             out[h][w].green = (unsigned char) (0xFF & ((*color) >> 16));
@@ -80,24 +186,87 @@ void convertBitmapToArray2d(JNIEnv* env,
     AndroidBitmap_unlockPixels(env, bitmap);
 }
 
+long jStringToLong(JNIEnv *env, jstring str) {
+    const char *resultStr = env->GetStringUTFChars(str, JNI_FALSE);
+    long result = std::stol(resultStr);
+    env->ReleaseStringUTFChars(str, resultStr);
+    return result;
+}
+
+float jStringToFloat(JNIEnv *env, jstring str) {
+    const char *resultStr = env->GetStringUTFChars(str, JNI_FALSE);
+    float result = std::stof(resultStr);
+    env->ReleaseStringUTFChars(str, resultStr);
+    return result;
+}
+
+//void convertJavaFaceEncode(JNIEnv *env,
+//                           jobjectArray faces,
+//                           std::vector<matrix<float, 0, 1>> &out) {
+//    long facesSize = (long) env->GetArrayLength(faces);
+//    for (long position = 0; position < facesSize; ++position) {
+//        jobjectArray faceElement = (jobjectArray) env->GetObjectArrayElement(faces, position);
+//        jobjectArray firstSettingItem = (jobjectArray) env->GetObjectArrayElement(faceElement, 0);
+//
+//        long nr = jStringToLong(env, (jstring) env->GetObjectArrayElement(firstSettingItem, 0));
+//        long nc = jStringToLong(env, (jstring) env->GetObjectArrayElement(firstSettingItem, 1));
+//
+//        matrix<float, 0, 1> m_matrix;
+//        m_matrix.set_size(nr, nc);
+//
+//        long encodeSize = (long) env->GetArrayLength(faceElement);
+//        for (long index = 1; index < encodeSize; ++index) {
+//            jobjectArray faceEncodeElement = (jobjectArray) env->GetObjectArrayElement(faceElement, index);
+//
+//            long iNr = jStringToLong(env, (jstring) env->GetObjectArrayElement(faceEncodeElement, 0));
+//            long iNc = jStringToLong(env, (jstring) env->GetObjectArrayElement(faceEncodeElement, 1));
+//            float iValue = jStringToFloat(env, (jstring) env->GetObjectArrayElement(faceEncodeElement, 2));
+//
+//            m_matrix(iNr, iNc) = iValue;
+//
+//            env->DeleteLocalRef(faceEncodeElement);
+//        }
+//        out.push_back(m_matrix);
+//
+//        env->DeleteLocalRef(firstSettingItem);
+//        env->DeleteLocalRef(faceElement);
+//    }
+//}
+
+void convertJavaFaceEncodeToDlibVectorMatrix(JNIEnv *env,
+                                             jobjectArray encode,
+                                             std::vector<matrix<float, 0, 1>>  &out){
+    long encodeSize = (long) env->GetArrayLength(encode);
+    jobjectArray firstSettingItem = (jobjectArray) env->GetObjectArrayElement(encode, 0);
+
+    long nr = jStringToLong(env, (jstring) env->GetObjectArrayElement(firstSettingItem, 0));
+    long nc = jStringToLong(env, (jstring) env->GetObjectArrayElement(firstSettingItem, 1));
+
+    matrix<float, 0, 1> m_matrix;
+    m_matrix.set_size(nr, nc);
+    for (long index = 1; index < encodeSize; ++index) {
+        jobjectArray element = (jobjectArray) env->GetObjectArrayElement(encode, index);
+
+        long iNr = jStringToLong(env, (jstring) env->GetObjectArrayElement(element, 0));
+        long iNc = jStringToLong(env, (jstring) env->GetObjectArrayElement(element, 1));
+        float iValue = jStringToFloat(env, (jstring) env->GetObjectArrayElement(element, 2));
+
+        m_matrix(iNr, iNc) = iValue;
+
+        env->DeleteLocalRef(element);
+    }
+    out.push_back(m_matrix);
+    env->DeleteLocalRef(firstSettingItem);
+}
+
 // JNI ////////////////////////////////////////////////////////////////////////
 
 dlib::shape_predictor sFaceLandmarksDetector;
-dlib::frontal_face_detector sFaceDetector;
+anet_type sFaceRecognition;
+std::vector<std::pair<string, std::vector<matrix<float, 0, 1>>>> knowFaces;
 
 extern "C" JNIEXPORT jboolean JNICALL
-JNI_METHOD(isFaceDetectorReady)(JNIEnv* env,
-                                jobject thiz) {
-    if (sFaceDetector.num_detectors() > 0) {
-        return JNI_TRUE;
-    } else {
-        return JNI_FALSE;
-    }
-}
-
-extern "C" JNIEXPORT jboolean JNICALL
-JNI_METHOD(isFaceLandmarksDetectorReady)(JNIEnv* env,
-                                         jobject thiz) {
+JNI_METHOD(isFaceLandmarksDetectorReady)(JNIEnv *env, jobject thiz) {
     if (sFaceLandmarksDetector.num_parts() > 0) {
         return JNI_TRUE;
     } else {
@@ -106,367 +275,198 @@ JNI_METHOD(isFaceLandmarksDetectorReady)(JNIEnv* env,
 }
 
 extern "C" JNIEXPORT void JNICALL
-JNI_METHOD(prepareFaceDetector)(JNIEnv *env,
-                                jobject thiz) {
-    // Profiler.
-    Profiler profiler;
-    profiler.start();
+JNI_METHOD(prepareUserFaces)(JNIEnv *env,
+                             jobject thiz,
+                             jstring userName,
+                             jobjectArray faceEncode) {
+    const char *name = env->GetStringUTFChars(userName, JNI_FALSE);
+    std::string user_name = std::string(name);
 
-    // Prepare the detector.
-    sFaceDetector = dlib::get_frontal_face_detector();
+    LOGI("L%d: search in knowFaces loop start", __LINE__);
+    for (long index = 0; index < knowFaces.size(); ++index) {
+        std::pair<string, std::vector<matrix<float, 0, 1>>> item = knowFaces[index];
+        if (item.first == user_name) {
+            LOGI("L%d: found in knowFaces", __LINE__);
+            convertJavaFaceEncodeToDlibVectorMatrix(env, faceEncode, item.second);
+            return;
+        }
+    }
+    LOGI("L%d: NOT FOUND in knowFaces", __LINE__);
 
-    double interval = profiler.stopAndGetInterval();
+    std::pair<std::string, std::vector<matrix<float, 0, 1>>> newItem;
+    string str(name);
+    newItem.first = str;
+    convertJavaFaceEncodeToDlibVectorMatrix(env, faceEncode, newItem.second);
 
-    LOGI("L%d: sFaceDetector is initialized (took %.3f ms)", __LINE__, interval);
-    LOGI("L%d: sFaceDetector.num_detectors()=%lu", __LINE__, sFaceDetector.num_detectors());
+    knowFaces.push_back(newItem);
+
+    env->ReleaseStringUTFChars(userName, name);
+
 }
 
 extern "C" JNIEXPORT void JNICALL
-JNI_METHOD(prepareFaceLandmarksDetector)(JNIEnv *env,
-                                         jobject thiz,
-                                         jstring detectorPath) {
-    const char *path = env->GetStringUTFChars(detectorPath, JNI_FALSE);
-
-    // Profiler.
-    Profiler profiler;
-    profiler.start();
-
-    // We need a shape_predictor. This is the tool that will predict face
-    // landmark positions given an image and face bounding box.  Here we are just
-    // loading the model from the shape_predictor_68_face_landmarks.dat file you gave
-    // as a command line argument.
-    // Deserialize the shape detector.
+JNI_METHOD(prepareLandmark)(JNIEnv *env, jobject thiz, jstring landmarkPath) {
+    const char *path = env->GetStringUTFChars(landmarkPath, JNI_FALSE);
     dlib::deserialize(path) >> sFaceLandmarksDetector;
-
-    double interval = profiler.stopAndGetInterval();
-
-    LOGI("L%d: sFaceLandmarksDetector is initialized (took %.3f ms)", __LINE__, interval);
-    LOGI("L%d: sFaceLandmarksDetector.num_parts()=%lu", __LINE__, sFaceLandmarksDetector.num_parts());
-
-    env->ReleaseStringUTFChars(detectorPath, path);
-
-    if (sFaceLandmarksDetector.num_parts() != 68) {
-        throwException(env, "It's not a 68 landmarks detector!");
-    }
+    env->ReleaseStringUTFChars(landmarkPath, path);
 }
 
-extern "C" JNIEXPORT jbyteArray JNICALL
-JNI_METHOD(detectFaces)(JNIEnv *env,
-                        jobject thiz,
-                        jobject bitmap) {
-    // Profiler.
-    Profiler profiler;
-    profiler.start();
+extern "C" JNIEXPORT void JNICALL
+JNI_METHOD(prepareRecognition)(JNIEnv *env, jobject thiz, jstring recognitionPath) {
+    const char *path = env->GetStringUTFChars(recognitionPath, JNI_FALSE);
+    dlib::deserialize(path) >> sFaceRecognition;
+    env->ReleaseStringUTFChars(recognitionPath, path);
+}
 
-    // Convert bitmap to dlib::array2d.
+extern "C" JNIEXPORT jstring JNICALL
+JNI_METHOD(recognitionContains)(JNIEnv *env,
+                                jobject thiz,
+                                jobject bitmap,
+                                jlong left,
+                                jlong top,
+                                jlong right,
+                                jlong bottom) {
     dlib::array2d<dlib::rgb_pixel> img;
     convertBitmapToArray2d(env, bitmap, img);
 
-    double interval = profiler.stopAndGetInterval();
-
-    const long width = img.nc();
-    const long height = img.nr();
-    LOGI("L%d: input image (w=%ld, h=%ld) is read (took %.3f ms)",
-         __LINE__, width, height, interval);
-
-    profiler.start();
-
-    // Now tell the face detector to give us a list of bounding boxes
-    // around all the faces in the image.
-    std::vector<dlib::rectangle> dets = sFaceDetector(img);
-    interval = profiler.stopAndGetInterval();
-    LOGI("L%d: Number of faces detected: %u (took %.3f ms)",
-         __LINE__, (unsigned int) dets.size(), interval);
-
-    // To protobuf message.
-    FaceList faces;
-    for (unsigned long i = 0; i < dets.size(); ++i) {
-        // Profiler.
-        profiler.start();
-
-        dlib::rectangle& det = dets.at(i);
-
-        Face* face = faces.add_faces();
-        RectF* bound = face->mutable_bound();
-
-        bound->set_left((float) det.left() / width);
-        bound->set_top((float) det.top() / height);
-        bound->set_right((float) det.right() / width);
-        bound->set_bottom((float) det.bottom() / height);
-
-        interval = profiler.stopAndGetInterval();
-        LOGI("L%d: Convert face #%lu to protobuf message (took %.3f ms)",
-             __LINE__, i, interval);
-    }
-
-    // Profiler.
-    profiler.start();
-
-    // Prepare the return message.
-    int outSize = faces.ByteSize();
-    jbyteArray out = env->NewByteArray(outSize);
-    jbyte* buffer = new jbyte[outSize];
-
-    faces.SerializeToArray(buffer, outSize);
-    env->SetByteArrayRegion(out, 0, outSize, buffer);
-    delete[] buffer;
-
-    interval = profiler.stopAndGetInterval();
-    LOGI("L%d: Convert faces to protobuf message (took %.3f ms)",
-         __LINE__, interval);
-
-    return out;
-}
-
-extern "C" JNIEXPORT jbyteArray JNICALL
-JNI_METHOD(detectLandmarksFromFace)(JNIEnv *env,
-                                    jobject thiz,
-                                    jobject bitmap,
-                                    jlong left,
-                                    jlong top,
-                                    jlong right,
-                                    jlong bottom) {
-    // Profiler.
-    Profiler profiler;
-    profiler.start();
-
-    // Convert bitmap to dlib::array2d.
-    dlib::array2d<dlib::rgb_pixel> img;
-    convertBitmapToArray2d(env, bitmap, img);
-
-    double interval = profiler.stopAndGetInterval();
-
-    const long width = img.nc();
-    const long height = img.nr();
-    LOGI("L%d: input image (w=%ld, h=%ld) is read (took %.3f ms)",
-         __LINE__, width, height, interval);
-
-    profiler.start();
-
-    // Detect landmarks.
     dlib::rectangle bound(left, top, right, bottom);
     dlib::full_object_detection shape = sFaceLandmarksDetector(img, bound);
-    interval = profiler.stopAndGetInterval();
-    LOGI("L%d: %lu landmarks detected (took %.3f ms)",
-         __LINE__, shape.num_parts(), interval);
 
-    profiler.start();
-    // Protobuf message.
-    LandmarkList landmarks;
-    // You get the idea, you can get all the face part locations if
-    // you want them.  Here we just store them in shapes so we can
-    // put them on the screen.
-    for (unsigned long i = 0 ; i < shape.num_parts(); ++i) {
-        dlib::point& pt = shape.part(i);
+    std::vector<matrix<rgb_pixel>> mrFaces;
+    matrix<rgb_pixel> face_chip;
+    extract_image_chip(img, get_face_chip_details(shape, 150, 0.25), face_chip);
+    mrFaces.push_back(move(face_chip));
 
-        Landmark* landmark = landmarks.add_landmarks();
-        landmark->set_x((float) pt.x() / width);
-        landmark->set_y((float) pt.y() / height);
+    std::vector<matrix<float, 0, 1>> face_descriptors = sFaceRecognition(mrFaces);
+
+    std::string user_name = "-1";
+
+    if (face_descriptors.size() > 0) {
+        double maxAccuracy = 1.0;
+        int containFacesCount = 0;
+
+        for (long r = 0; r < knowFaces.size(); ++r) {
+            std::pair<string, std::vector<matrix<float, 0, 1>>> pairItem = knowFaces[r];
+
+            double uMaxAccuracy = 1.0;
+            int uContainFacesCount = 0;
+
+            for (long i1 = 0; i1 < pairItem.second.size(); ++i1) {
+                for (long i2 = 0; i2 < face_descriptors.size(); ++i2) {
+
+                    double faceCompareAccuracy = length(pairItem.second[i1] - face_descriptors[i2]);
+
+                    if (faceCompareAccuracy <= 0.5) {
+                        if (uMaxAccuracy > faceCompareAccuracy) {
+                            uMaxAccuracy = faceCompareAccuracy;
+                        }
+                        uContainFacesCount = uContainFacesCount + 1;
+                    }
+                }
+            }
+
+            if (uMaxAccuracy != 1.0 &&
+                (maxAccuracy > uMaxAccuracy || containFacesCount < uContainFacesCount)) {
+                user_name = pairItem.first;
+                maxAccuracy = uMaxAccuracy;
+                containFacesCount = uContainFacesCount;
+            }
+
+        }
     }
-    interval = profiler.stopAndGetInterval();
-    LOGI("L%d: Convert #%lu landmarks to protobuf message (took %.3f ms)",
-         __LINE__, shape.num_parts(), interval);
-
-    // Profiler.
-    profiler.start();
-
-    // TODO: Make a JNI function to convert a message to byte[] living in
-    // TODO: lib-protobuf project.
-    // Prepare the return message.
-    int outSize = landmarks.ByteSize();
-    jbyteArray out = env->NewByteArray(outSize);
-    jbyte* buffer = new jbyte[outSize];
-
-    landmarks.SerializeToArray(buffer, outSize);
-    env->SetByteArrayRegion(out, 0, outSize, buffer);
-    delete[] buffer;
-
-    interval = profiler.stopAndGetInterval();
-    LOGI("L%d: Convert faces to protobuf message (took %.3f ms)",
-         __LINE__, interval);
-
-    return out;
+    return env->NewStringUTF(user_name.c_str());
 }
 
-extern "C" JNIEXPORT jbyteArray JNICALL
-JNI_METHOD(detectLandmarksFromFaces)(JNIEnv *env,
-                                     jobject thiz,
-                                     jobject bitmap,
-                                     jbyteArray faceRects) {
-    // Profiler.
-    Profiler profiler;
-    profiler.start();
 
-    // Convert bitmap to dlib::array2d.
+extern "C" JNIEXPORT jstring JNICALL
+JNI_METHOD(recognitionFace)(JNIEnv *env,
+                            jobject thiz,
+                            jobject bitmap,
+                            jlong left,
+                            jlong top,
+                            jlong right,
+                            jlong bottom) {
     dlib::array2d<dlib::rgb_pixel> img;
     convertBitmapToArray2d(env, bitmap, img);
 
-    const long width = img.nc();
-    const long height = img.nr();
-    LOGI("L%d: input image (w=%ld, h=%ld) is read (took %.3f ms)",
-         __LINE__, width, height,
-         profiler.stopAndGetInterval());
+    dlib::rectangle bound(left, top, right, bottom);
+    dlib::full_object_detection shape = sFaceLandmarksDetector(img, bound);
 
-    profiler.start();
+    std::vector<matrix<rgb_pixel>> mrFaces;
+    matrix<rgb_pixel> face_chip;
+    extract_image_chip(img, get_face_chip_details(shape, 150, 0.25), face_chip);
+    mrFaces.push_back(move(face_chip));
 
-    // Translate the input face-rects message into something we recognize here.
-    jbyte* pFaceRects = env->GetByteArrayElements(faceRects, NULL);
-    jsize pFaceRectsLen = env->GetArrayLength(faceRects);
-    RectFList msgBounds;
-    msgBounds.ParseFromArray(pFaceRects, pFaceRectsLen);
-    env->ReleaseByteArrayElements(faceRects, pFaceRects, 0);
-    std::vector<dlib::rectangle> bounds;
-    for (int i = 0; i < msgBounds.rects().size(); ++i) {
-        const RectF& msgBound = msgBounds.rects().Get(i);
-        bounds.push_back(dlib::rectangle((long) msgBound.left(),
-                                         (long) msgBound.top(),
-                                         (long) msgBound.right(),
-                                         (long) msgBound.bottom()));
+    std::vector<matrix<float, 0, 1>> face_descriptors = sFaceRecognition(mrFaces);
+
+    if (face_descriptors.size() != 1) {
+        return env->NewStringUTF("[]");
     }
-    LOGI("L%d: input face rects (size=%d) is read (took %.3f ms)",
-         __LINE__, msgBounds.rects().size(),
-         profiler.stopAndGetInterval());
 
-    // Detect landmarks and return protobuf message.
-    FaceList faces;
-    for (unsigned long j = 0; j < bounds.size(); ++j) {
-        profiler.start();
-        dlib::full_object_detection shape = sFaceLandmarksDetector(img, bounds[j]);
-        LOGI("L%d: #%lu face, %lu landmarks detected (took %.3f ms)",
-             __LINE__, j, shape.num_parts(),
-             profiler.stopAndGetInterval());
+    matrix<float, 0, 1> item = face_descriptors[0];
 
-        profiler.start();
+    std::string result_json = "[\"" + std::to_string(item.nr()) +
+                              "\",\"" + std::to_string(item.nc()) +
+                              "\",[";
 
-        // To protobuf message.
-        Face* face = faces.add_faces();
-        // Transfer face boundary.
-        RectF* bound = face->mutable_bound();
-        bound->set_left((float) bounds[j].left() / width);
-        bound->set_top((float) bounds[j].top() / height);
-        bound->set_right((float) bounds[j].right() / width);
-        bound->set_bottom((float) bounds[j].bottom() / height);
-        // Transfer face landmarks.
-        for (u_long i = 0 ; i < shape.num_parts(); ++i) {
-            dlib::point& pt = shape.part(i);
 
-            Landmark* landmark = face->add_landmarks();
-            landmark->set_x((float) pt.x() / width);
-            landmark->set_y((float) pt.y() / height);
+    bool first_cycler = false;
+    for (long r = 0; r < item.nr(); ++r) {
+        for (long c = 0; c < item.nc(); ++c) {
+            if (first_cycler) {
+                result_json += ",";
+            }
+            first_cycler = true;
+
+            result_json += "[\"" + std::to_string(r) + "\",\""
+                           + std::to_string(c) + "\",\""
+                           + std::to_string(item(r, c)) + "\"]";
         }
-        LOGI("L%d: Convert #%lu face to protobuf message (took %.3f ms)",
-             __LINE__, j,
-             profiler.stopAndGetInterval());
     }
 
-    profiler.start();
 
-    // Prepare the return message.
-    int outSize = faces.ByteSize();
-    jbyteArray out = env->NewByteArray(outSize);
-    jbyte* buffer = new jbyte[outSize];
-
-    faces.SerializeToArray(buffer, outSize);
-    env->SetByteArrayRegion(out, 0, outSize, buffer);
-    delete[] buffer;
-
-    LOGI("L%d: Convert faces to protobuf message (took %.3f ms)",
-         __LINE__, profiler.stopAndGetInterval());
-
-    return out;
+    result_json += "]]";
+    return env->NewStringUTF(result_json.c_str());
 }
 
-extern "C" JNIEXPORT jbyteArray JNICALL
-JNI_METHOD(detectFacesAndLandmarks)(JNIEnv *env,
-                                    jobject thiz,
-                                    jobject bitmap) {
-    if (sFaceDetector.num_detectors() == 0) {
-        LOGI("L%d: sFaceDetector is not initialized!", __LINE__);
-        throwException(env, "sFaceDetector is not initialized!");
-        return NULL;
-    }
-    if (sFaceLandmarksDetector.num_parts() == 0) {
-        LOGI("L%d: sFaceLandmarksDetector is not initialized!", __LINE__);
-        throwException(env, "sFaceLandmarksDetector is not initialized!");
-        return NULL;
-    }
-
-    // Profiler.
-    Profiler profiler;
-    profiler.start();
-
-    // Convert bitmap to dlib::array2d.
+extern "C" JNIEXPORT jfloatArray JNICALL
+JNI_METHOD(findDescriptors)(JNIEnv *env,
+                            jobject thiz,
+                            jbyteArray nv21,
+                            jint width,
+                            jint height,
+                            jlong left,
+                            jlong top,
+                            jlong right,
+                            jlong bottom) {
     dlib::array2d<dlib::rgb_pixel> img;
-    convertBitmapToArray2d(env, bitmap, img);
+    convertNV21ToArray2d(env, img, nv21, width, height);
 
-    double interval = profiler.stopAndGetInterval();
+    dlib::rectangle bound(left, top, right, bottom);
+    dlib::full_object_detection shape = sFaceLandmarksDetector(img, bound);
 
-    const float width = (float) img.nc();
-    const float height = (float) img.nr();
-    LOGI("L%d: input image (w=%f, h=%f) is read (took %.3f ms)",
-         __LINE__, width, height, interval);
+    std::vector<matrix<rgb_pixel>> mrFaces;
+    matrix<rgb_pixel> face_chip;
+    extract_image_chip(img, get_face_chip_details(shape, 150, 0.25), face_chip);
+    mrFaces.push_back(move(face_chip));
 
-//    // Make the image larger so we can detect small faces.
-//    dlib::pyramid_up(img);
-//    LOGI("L%d: pyramid_up the input image (w=%lu, h=%lu).", __LINE__, img.nc(), img.nr());
+    std::vector<matrix<float, 0, 1>> face_descriptors = sFaceRecognition(mrFaces);
 
-    profiler.start();
+    jfloatArray result = env->NewFloatArray(128);
 
-    // Now tell the face detector to give us a list of bounding boxes
-    // around all the faces in the image.
-    std::vector<dlib::rectangle> dets = sFaceDetector(img);
-    interval = profiler.stopAndGetInterval();
-    LOGI("L%d: Number of faces detected: %u (took %.3f ms)",
-         __LINE__, (unsigned int) dets.size(), interval);
-
-    // Protobuf message.
-    FaceList faces;
-    // Now we will go ask the shape_predictor to tell us the pose of
-    // each face we detected.
-    for (unsigned long j = 0; j < dets.size(); ++j) {
-        profiler.start();
-        dlib::full_object_detection shape = sFaceLandmarksDetector(img, dets[j]);
-        interval = profiler.stopAndGetInterval();
-        LOGI("L%d: #%lu face, %lu landmarks detected (took %.3f ms)",
-             __LINE__, j, shape.num_parts(), interval);
-
-        profiler.start();
-
-        // To protobuf message.
-        Face* face = faces.add_faces();
-        // Transfer face boundary.
-        RectF* bound = face->mutable_bound();
-        bound->set_left((float) dets[j].left() / width);
-        bound->set_top((float) dets[j].top() / height);
-        bound->set_right((float) dets[j].right() / width);
-        bound->set_bottom((float) dets[j].bottom() / height);
-        // Transfer face landmarks.
-        for (u_long i = 0 ; i < shape.num_parts(); ++i) {
-            dlib::point& pt = shape.part(i);
-
-            Landmark* landmark = face->add_landmarks();
-            landmark->set_x((float) pt.x() / width);
-            landmark->set_y((float) pt.y() / height);
-        }
-        interval = profiler.stopAndGetInterval();
-        LOGI("L%d: Convert #%lu face to protobuf message (took %.3f ms)",
-             __LINE__, j, interval);
+    if (face_descriptors.size() == 0) {
+        return env->NewFloatArray(0);
     }
 
-    profiler.start();
+    matrix<float, 0, 1> item = face_descriptors[0];
+    float* data;
+    data = static_cast<float *>(malloc(sizeof(float) * 128));
 
-    // Prepare the return message.
-    int outSize = faces.ByteSize();
-    jbyteArray out = env->NewByteArray(outSize);
-    jbyte* buffer = new jbyte[outSize];
+    for (int i = 0; i<128; i++) {
+        data[i] = item(i,1);
+    }
+    env->SetFloatArrayRegion(result, 0, 128, data);
+    free(data);
+    return result;
 
-    faces.SerializeToArray(buffer, outSize);
-    env->SetByteArrayRegion(out, 0, outSize, buffer);
-    delete[] buffer;
-
-    interval = profiler.stopAndGetInterval();
-    LOGI("L%d: Convert faces to protobuf message (took %.3f ms)",
-         __LINE__, interval);
-
-    return out;
 }

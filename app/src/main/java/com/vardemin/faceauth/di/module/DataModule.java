@@ -7,10 +7,8 @@ import com.vardemin.faceauth.mvp.model.ICameraManager;
 import com.vardemin.faceauth.mvp.model.ILocalRepository;
 import com.vardemin.faceauth.mvp.model.camera.CameraManager;
 import com.vardemin.faceauth.mvp.model.camera.FaceDetector;
-import com.vardemin.faceauth.mvp.model.camera.FaceTracker;
 import com.vardemin.faceauth.mvp.model.repository.LocalRepository;
 
-import javax.inject.Inject;
 import javax.inject.Singleton;
 
 import dagger.Module;
@@ -20,9 +18,8 @@ import dagger.Provides;
 public class DataModule {
     @Provides
     @Singleton
-    public ICameraManager provideCameraManager(FaceDetector detector, LargestFaceFocusingProcessor processor,
-                                               FaceTracker tracker) {
-        return new CameraManager(detector, processor, tracker);
+    public ICameraManager provideCameraManager(FaceDetector detector) {
+        return new CameraManager(detector);
     }
 
     @Provides

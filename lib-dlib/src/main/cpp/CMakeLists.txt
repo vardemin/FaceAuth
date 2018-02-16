@@ -20,25 +20,16 @@ add_library(dlib SHARED IMPORTED)
 set_target_properties(dlib PROPERTIES IMPORTED_LOCATION
     ${LIB_DIR}/dlib/lib/${ANDROID_ABI}/libdlib.so)
 
-# Link to libprotobuf-lite.so.
-add_library(protobuf SHARED IMPORTED)
-set_target_properties(protobuf PROPERTIES IMPORTED_LOCATION
-    ${LIB_DIR}/protobuf/lib/${ANDROID_ABI}/libprotobuf-lite-3.2.0.so)
-
 # Build project shared lib
+# set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fexceptions -std=c++11 -mfpu=neon")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fexceptions -std=c++11")
 add_library(${TARGET_NAME} SHARED
-            jni.cpp
-            profiler.cpp
-            dlib-face-landmarks-detector-jni.cpp
-            include/my/dlib/data/messages.pb.cc)
+            dlib-face-landmarks-detector-jni.cpp)
+
 target_include_directories(${TARGET_NAME} PRIVATE
-                           ${CMAKE_SOURCE_DIR}/include
-                           ${LIB_DIR}/protobuf/include
                            ${LIB_DIR}/dlib/include)
 target_link_libraries(${TARGET_NAME}
                       dlib
-                      protobuf
                       android
                       jnigraphics
                       log)
@@ -51,10 +42,6 @@ file(MAKE_DIRECTORY ${INSTALL_DIR}/${TARGET_NAME}/lib)
 # Copy out lib header file.
 file(COPY "${LIB_DIR}/dlib/include/"
      DESTINATION "${INSTALL_DIR}/${TARGET_NAME}/include/")
-
-# Copy generated protobuf message header file.
-file(COPY "${CMAKE_SOURCE_DIR}/include/my/dlib/data/messages.pb.h"
-     DESTINATION "${INSTALL_DIR}/${TARGET_NAME}/include/my/dlib/data/")
 
 # Copy out the project binary.
 add_custom_command(TARGET ${TARGET_NAME} POST_BUILD

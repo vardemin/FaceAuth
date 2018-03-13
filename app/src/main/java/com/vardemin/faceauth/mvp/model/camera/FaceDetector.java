@@ -43,7 +43,7 @@ public class FaceDetector extends Detector<Face> {
 
     private Disposable disposable;
 
-    public FaceDetector(Context context, FaceListener listener) {
+    public FaceDetector(Context context) {
 
         this.listener = listener;
 
@@ -114,7 +114,7 @@ public class FaceDetector extends Detector<Face> {
                 }
             });
 
-            FileUtils.copyFileFromRawToOthers(context, R.raw.shape_predictor_68_face_landmarks, targetPath);
+            FileUtils.copyFileFromRawToOthers(context, R.raw.dlib_face_recognition_resnet_model_v1, targetPath);
         }
         dlibDetector.prepareRecognition(targetPath);
         return Observable.just(false);
@@ -128,8 +128,9 @@ public class FaceDetector extends Detector<Face> {
 
     @Override
     public SparseArray<Face> detect(Frame frame) {
+        SparseArray<Face> faces = new SparseArray<>();
         if (disposable == null || disposable.isDisposed()) {
-            SparseArray<Face> faces = detector.detect(frame);
+            faces = detector.detect(frame);
             if (faces.size() > 0) {
                 if (faceData == null) {
                     faceData = new FaceData(faces.get(0), frame);
@@ -150,27 +151,13 @@ public class FaceDetector extends Detector<Face> {
                         }
                     }
                     if (found) {
-                        disposable = getDescriptor(frame, faceData.getFace())
-                                .observeOn(Schedulers.io())
-                                .subscribeOn(AndroidSchedulers.mainThread())
-                                .subscribe(new Consumer<float[]>() {
-                                    @Override
-                                    public void accept(float[] floats) throws Exception {
-                                        faceData.setDescriptors(floats);
-                                        disposable.dispose();
-                                    }
-                                }, new Consumer<Throwable>() {
-                                    @Override
-                                    public void accept(Throwable throwable) throws Exception {
-                                        Log.d("FACE DETECTOR: ", throwable.getLocalizedMessage());
-                                        disposable.dispose();
-                                    }
-                                });
+                        float[] descriptors = getDescriptor(frame, faceData.getFace());
+                        faceData.setDescriptors(descriptors);
                     } else listener.onMissingFace();
                 }
             }
-            return faces;
-        } else return null;
+        }
+        return faces;
     }
 
     @Override
@@ -178,14 +165,14 @@ public class FaceDetector extends Detector<Face> {
         return !isFaceLoaded && !isLandmarkLoaded && detector.isOperational();
     }
 
-    private Observable<float[]> getDescriptor(Frame frame, Face face) {
+    private float[] getDescriptor(Frame frame, Face face) {
         long left = (long) face.getPosition().x;
         long top = (long) face.getPosition().y;
         long right = (long) (face.getPosition().x + face.getWidth());
         long bottom = (long) (face.getPosition().y + face.getHeight());
         float[] descriptor = dlibDetector.findDescriptors(frame.getGrayscaleImageData().array(), frame.getMetadata().getWidth(), frame.getMetadata().getHeight(),
                 left, top, right, bottom);
-        return Observable.just(descriptor);
+        return descriptor;
     }
 
     private FacePosition detectPose(Face face) {

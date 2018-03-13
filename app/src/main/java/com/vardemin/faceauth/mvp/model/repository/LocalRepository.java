@@ -3,7 +3,6 @@ package com.vardemin.faceauth.mvp.model.repository;
 import android.content.Context;
 import android.provider.Settings;
 
-import com.vardemin.faceauth.data.UserModel;
 import com.vardemin.faceauth.mvp.model.ILocalRepository;
 
 import java.util.List;
@@ -11,11 +10,6 @@ import java.util.List;
 import io.realm.Realm;
 import io.realm.RealmConfiguration;
 import io.realm.RealmObject;
-import io.realm.RealmResults;
-
-/**
- * Created by user on 22.01.18.
- */
 
 public class LocalRepository implements ILocalRepository {
     private static final String NAME = "faceauth.realm";
@@ -63,8 +57,5 @@ public class LocalRepository implements ILocalRepository {
         }
         realm.commitTransaction();
     }
-
-
-
 
 }

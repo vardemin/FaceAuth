@@ -20,8 +20,8 @@ public class DetectorModule {
 
     @Provides
     @Singleton
-    public FaceDetector provideDetector(Context context, ICameraManager manager) {
-        return new FaceDetector(context, manager);
+    public FaceDetector provideDetector(Context context) {
+        return new FaceDetector(context);
     }
 
 

@@ -26,5 +26,13 @@
         android:layout_margin="10dp"
         android:drawableLeft="@drawable/ic_edit" />
 
+    <Button
+        android:id="@+id/btn_start"
+        android:layout_width="match_parent"
+        android:layout_height="50dp"
+        style="@style/Base.Widget.AppCompat.Button.Borderless.Colored"
+        android:text="Start test scan"
+        android:layout_margin="10dp" />
+
 
 </LinearLayout>

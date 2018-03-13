@@ -2,11 +2,12 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.vardemin.faceauth">
 
-    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+
     <uses-feature
         android:name="android.hardware.camera"
-        android:required="true"/>
+        android:required="true" />
 
     <application
         android:name=".App"
@@ -16,8 +17,7 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/AppTheme">
-        <activity android:name=".ui.activity.MainActivity">
-        </activity>
+        <activity android:name=".ui.activity.MainActivity"></activity>
         <activity
             android:name=".ui.activity.SplashActivity"
             android:configChanges="orientation|keyboardHidden|screenSize"
@@ -29,7 +29,8 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-        <activity android:name=".ui.activity.SetupActivity"></activity>
+        <activity android:name=".ui.activity.SetupActivity" />
+        <activity android:name=".ui.activity.ScanActivity"></activity>
     </application>
 
 </manifest>

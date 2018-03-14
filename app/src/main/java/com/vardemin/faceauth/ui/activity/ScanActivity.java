@@ -3,7 +3,9 @@ package com.vardemin.faceauth.ui.activity;
 import android.app.Dialog;
 import android.content.Context;
 import android.os.Bundle;
+import android.support.design.widget.Snackbar;
 import android.util.Log;
+import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -47,12 +49,19 @@ public class ScanActivity extends MvpAppCompatActivity implements ScanView {
 
     private CameraSource cameraSource = null;
 
+    private Snackbar waitingSnackbar;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_scan);
         ButterKnife.bind(this);
-        createCameraSource();
+
+        waitingSnackbar = Snackbar.make(findViewById(android.R.id.content), "Loading libraries...", Snackbar.LENGTH_INDEFINITE);
+        Snackbar.SnackbarLayout snack_view = (Snackbar.SnackbarLayout) waitingSnackbar.getView();
+        snack_view.addView(new ProgressBar(this));
+
+        presenter.callReady();
     }
 
     @Override
@@ -68,7 +77,6 @@ public class ScanActivity extends MvpAppCompatActivity implements ScanView {
     @Override
     protected void onResume() {
         super.onResume();
-        startCameraSource();
     }
 
     @Override
@@ -126,10 +134,20 @@ public class ScanActivity extends MvpAppCompatActivity implements ScanView {
         }
     }
 
-    /**
-     * Factory for creating a pose tracker to be associated with a new pose.  The multiprocessor
-     * uses this factory to create pose trackers as needed -- one for each individual.
-     */
+    @Override
+    public void showWaitingDialog(boolean state) {
+        if (state) {
+            waitingSnackbar.show();
+        }
+        else waitingSnackbar.dismiss();
+    }
+
+    @Override
+    public void onScanStart() {
+        createCameraSource();
+        startCameraSource();
+    }
+
     private class GraphicPoseTrackerFactory implements MultiProcessor.Factory<Face> {
         @Override
         public Tracker<Face> create(Face pose) {
@@ -137,10 +155,6 @@ public class ScanActivity extends MvpAppCompatActivity implements ScanView {
         }
     }
 
-    /**
-     * Face tracker for each detected individual. This maintains a face graphic within the app's
-     * associated face overlay.
-     */
     private class GraphicPoseTracker extends Tracker<Face> {
         private GraphicOverlay overlay;
         private FaceGraphic faceGraphic;

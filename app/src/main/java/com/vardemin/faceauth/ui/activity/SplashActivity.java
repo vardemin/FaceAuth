@@ -74,12 +74,9 @@ public class SplashActivity extends AppCompatActivity {
         subscriber = Observable
                 .just(true)
                 .delay(750, TimeUnit.MILLISECONDS)
-                .subscribe(new Consumer<Boolean>() {
-                    @Override
-                    public void accept(Boolean ignored) throws Exception {
-                        startActivity(new Intent(SplashActivity.this, MainActivity.class));
-                        finish();
-                    }
+                .subscribe(ignored -> {
+                    startActivity(new Intent(SplashActivity.this, MainActivity.class));
+                    finish();
                 });
     }
 }

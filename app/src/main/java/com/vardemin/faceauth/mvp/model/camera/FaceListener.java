@@ -1,13 +1,10 @@
 package com.vardemin.faceauth.mvp.model.camera;
 
-import com.google.android.gms.vision.face.Face;
+import com.vardemin.faceauth.data.FaceData;
 
 public interface FaceListener {
-    void onNewFace(Face face);
 
     void onMissingFace();
 
-    void onFaceUpdate(FacePosition position);
-
-    void onUnrecognizedPose();
+    void onFaceUpdate(FaceData data);
 }

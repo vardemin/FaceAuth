@@ -10,9 +10,7 @@ public class FaceData {
     private float[] descriptors;
     private FacePosition position;
 
-    public FaceData(Face face, Frame frame) {
-        this.face = face;
-        this.nv21 = frame.getGrayscaleImageData().array();
+    public FaceData() {
     }
 
     public Face getFace() {
@@ -45,5 +43,45 @@ public class FaceData {
 
     public void setPosition(FacePosition position) {
         this.position = position;
+    }
+
+
+    public static Builder newBuilder() {
+        return new FaceData().new Builder();
+    }
+
+    public class Builder {
+
+        private Builder() {
+            // private constructor
+        }
+
+        public Builder setFace(Face face) {
+            FaceData.this.face = face;
+
+            return this;
+        }
+
+        public Builder setNV21(byte[] data) {
+            FaceData.this.nv21 = data;
+
+            return this;
+        }
+
+        public Builder setDescriptors(float[] descriptors) {
+            FaceData.this.descriptors = descriptors;
+
+            return this;
+        }
+
+        public Builder setPosition(FacePosition position) {
+            FaceData.this.position = position;
+
+            return this;
+        }
+
+        public FaceData build() {
+            return FaceData.this;
+        }
     }
 }

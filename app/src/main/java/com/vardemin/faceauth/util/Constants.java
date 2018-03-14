@@ -6,6 +6,8 @@ import java.io.File;
 
 public class Constants {
 
+    public static final float FACE_SIMILAR_LIMIT = 0.6f;
+
     public static String getFaceShapeModelPath() {
         File sdcard = Environment.getExternalStorageDirectory();
         String targetPath = sdcard.getAbsolutePath() + "/" + "shape_predictor_68_face_landmarks.dat";

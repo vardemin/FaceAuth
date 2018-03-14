@@ -41,6 +41,8 @@ void throwException(JNIEnv *env, const char *message) {
     env->ThrowNew(Exception, message);
 }
 
+float lastDistance = 0;
+
 #define LOGI(...) \
   ((void)__android_log_print(ANDROID_LOG_INFO, "dlib-jni:", __VA_ARGS__))
 
@@ -48,21 +50,21 @@ void throwException(JNIEnv *env, const char *message) {
     Java_com_my_jni_dlib_DLibLandmarks68Detector_##NAME
 
 
-void convertNV21ToArray2d(JNIEnv* env, dlib::array2d<dlib::rgb_pixel>& out,
+void convertNV21ToArray2d(JNIEnv *env, dlib::array2d<dlib::rgb_pixel> &out,
                           jbyteArray data, jint width, jint height) {
-    jbyte* yuv = env->GetByteArrayElements(data, 0);
+    jbyte *yuv = env->GetByteArrayElements(data, 0);
     int frameSize = width * height;
     int y, u, v, uvIndex;
     int r, g, b;
 
     out.set_size((long) height, (long) width);
 
-    for(int row = 0; row < height; row++) {
-        for(int column = 0; column < width; column++) {
+    for (int row = 0; row < height; row++) {
+        for (int column = 0; column < width; column++) {
             uvIndex = frameSize + (row >> 1) * width + (column & ~1);
             y = 0xff & yuv[row * width + column] - 16;
             v = 0xff & yuv[uvIndex] - 128;
-            u = 0xff & yuv[uvIndex+1] - 128;
+            u = 0xff & yuv[uvIndex + 1] - 128;
 
             y = y < 0 ? 0 : 1164 * y;
 
@@ -70,20 +72,20 @@ void convertNV21ToArray2d(JNIEnv* env, dlib::array2d<dlib::rgb_pixel>& out,
             g = y - 813 * v - 391 * u;
             b = y + 2018 * u;
 
-            out[row][column].red = (unsigned char)(r < 0 ? 0 : r > 255000 ? 255 : r/1000);
-            out[row][column].green = (unsigned char)(g < 0 ? 0 : g > 255000 ? 255 : g/1000);
-            out[row][column].blue = (unsigned char)(b < 0 ? 0 : b > 255000 ? 255 : b/1000);
+            out[row][column].red = (unsigned char) (r < 0 ? 0 : r > 255000 ? 255 : r / 1000);
+            out[row][column].green = (unsigned char) (g < 0 ? 0 : g > 255000 ? 255 : g / 1000);
+            out[row][column].blue = (unsigned char) (b < 0 ? 0 : b > 255000 ? 255 : b / 1000);
         }
     }
 }
 
 
-void downScaleNV21(JNIEnv* env, jclass obj,
+void downScaleNV21(JNIEnv *env, jclass obj,
                    jbyteArray data, jint width, jint height) {
-    int width_ds = width/2;
-    int height_ds = height/2;
-    jbyte* yuv = env->GetByteArrayElements(data, 0);
-    jbyte* yuv_ds = new jbyte[((width/2) * (height/2) * 3) / 2];
+    int width_ds = width / 2;
+    int height_ds = height / 2;
+    jbyte *yuv = env->GetByteArrayElements(data, 0);
+    jbyte *yuv_ds = new jbyte[((width / 2) * (height / 2) * 3) / 2];
     int frameSize = width * height;
     int frameSize_ds = width_ds * height_ds;
 
@@ -91,8 +93,8 @@ void downScaleNV21(JNIEnv* env, jclass obj,
     int u, v;
     int uvIndex, uvIndex1, uvIndex2, uvIndex3, uvIndex4;
 
-    for(int row =0, row_ds = 0; row < height; row=+4, row_ds+=2) {
-        for(int column = 0, column_ds = 0; column < width; column=+4, column_ds+=2) {
+    for (int row = 0, row_ds = 0; row < height; row = +4, row_ds += 2) {
+        for (int column = 0, column_ds = 0; column < width; column = +4, column_ds += 2) {
 
             //      0     1     2     3
             //    ______________________
@@ -108,22 +110,22 @@ void downScaleNV21(JNIEnv* env, jclass obj,
             y1 = (yuv[row * width + column] +               // y1a
                   yuv[row * width + (column + 1)] +         // y1b
                   yuv[(row + 1) * width + column] +         // y1c
-                  yuv[(row + 1) * width + (column + 1)])/4; // y1d
+                  yuv[(row + 1) * width + (column + 1)]) / 4; // y1d
 
             y2 = (yuv[row * width + (column + 2)] +         // y2a
                   yuv[row * width + (column + 3)] +         // y2b
                   yuv[(row + 1) * width + (column + 2)] +   // y2c
-                  yuv[(row + 1) * width + (column + 3)])/4; // y2d
+                  yuv[(row + 1) * width + (column + 3)]) / 4; // y2d
 
             y3 = (yuv[(row + 2) * width + column] +         // y3a
                   yuv[(row + 2) * width + (column + 1)] +   // y3b
                   yuv[(row + 3) * width + column] +         // y3c
-                  yuv[(row + 3) * width + (column + 1)])/4; // y3d
+                  yuv[(row + 3) * width + (column + 1)]) / 4; // y3d
 
             y4 = (yuv[(row + 2) * width + (column + 2)] +   // y4a
                   yuv[(row + 2) * width + (column + 3)] +   // y4b
                   yuv[(row + 3) * width + (column + 2)] +   // y4c
-                  yuv[(row + 3) * width + (column + 3)])/4; // y4d
+                  yuv[(row + 3) * width + (column + 3)]) / 4; // y4d
 
             uvIndex1 = frameSize + (row >> 1) * width + (column & ~1);
             uvIndex2 = frameSize + (row >> 1) * width + ((column + 2) & ~1);
@@ -131,8 +133,8 @@ void downScaleNV21(JNIEnv* env, jclass obj,
             uvIndex4 = frameSize + ((row + 2) >> 1) * width + ((column + 2) & ~1);
             uvIndex = frameSize_ds + (row_ds >> 1) * width_ds + (column_ds & ~1);
 
-            v = (yuv[uvIndex1] + yuv[uvIndex2] + yuv[uvIndex3] + yuv[uvIndex4])/4;
-            u = (yuv[uvIndex1+1] + yuv[uvIndex2+1] + yuv[uvIndex3+1] + yuv[uvIndex4+1])/4;
+            v = (yuv[uvIndex1] + yuv[uvIndex2] + yuv[uvIndex3] + yuv[uvIndex4]) / 4;
+            u = (yuv[uvIndex1 + 1] + yuv[uvIndex2 + 1] + yuv[uvIndex3 + 1] + yuv[uvIndex4 + 1]) / 4;
 
             yuv_ds[row * width + column] = (jbyte) y1;
             yuv_ds[row * width + (column + 1)] = (jbyte) y2;
@@ -235,7 +237,7 @@ float jStringToFloat(JNIEnv *env, jstring str) {
 
 void convertJavaFaceEncodeToDlibVectorMatrix(JNIEnv *env,
                                              jobjectArray encode,
-                                             std::vector<matrix<float, 0, 1>>  &out){
+                                             std::vector<matrix<float, 0, 1>> &out) {
     long encodeSize = (long) env->GetArrayLength(encode);
     jobjectArray firstSettingItem = (jobjectArray) env->GetObjectArrayElement(encode, 0);
 
@@ -459,14 +461,37 @@ JNI_METHOD(findDescriptors)(JNIEnv *env,
     }
 
     matrix<float, 0, 1> item = face_descriptors[0];
-    float* data;
+    float *data;
     data = static_cast<float *>(malloc(sizeof(float) * 128));
 
-    for (int i = 0; i<128; i++) {
-        data[i] = item(i,1);
+    for (int i = 0; i < 128; i++) {
+        data[i] = item(i, 1);
     }
     env->SetFloatArrayRegion(result, 0, 128, data);
     free(data);
     return result;
-
 }
+
+extern "C" JNIEXPORT jboolean JNICALL
+JNI_METHOD(compareDescriptors)(JNIEnv *env,
+                               jobject thiz,
+                               jfloatArray source,
+                               jfloatArray dest,
+                               jfloat limit) {
+    float *_src = env->GetFloatArrayElements(source, 0);
+    float *_dst = env->GetFloatArrayElements(dest, 0);
+
+    matrix<float, 128, 1> src;
+    matrix<float, 128, 1> dst;
+
+    for (int i = 0; i < 128; i++) {
+        src(i, 1) = _src[i];
+        dst(i, 1) = _dst[1];
+    }
+
+    env->ReleaseFloatArrayElements(source, _src, 0);
+    env->ReleaseFloatArrayElements(dest, _dst, 0);
+
+    return (jboolean) (length(dst - src) < limit);
+}
+

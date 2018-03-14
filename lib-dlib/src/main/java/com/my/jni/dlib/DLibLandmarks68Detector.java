@@ -92,4 +92,6 @@ public class DLibLandmarks68Detector {
                                            long top,
                                            long right,
                                            long bottom);
+
+    public native boolean compareDescriptors(float[] source, float[] destination, float limit);
 }

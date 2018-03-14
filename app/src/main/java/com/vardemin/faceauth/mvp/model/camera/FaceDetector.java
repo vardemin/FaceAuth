@@ -11,18 +11,20 @@ import com.google.android.gms.vision.Detector;
 import com.google.android.gms.vision.Frame;
 import com.google.android.gms.vision.face.Face;
 import com.my.jni.dlib.DLibLandmarks68Detector;
-import com.vardemin.faceauth.App;
 import com.vardemin.faceauth.R;
 import com.vardemin.faceauth.data.FaceData;
 import com.vardemin.faceauth.util.Constants;
 import com.vardemin.faceauth.util.FileUtils;
 
 import java.io.File;
+import java.util.ArrayList;
+import java.util.List;
 
-import io.reactivex.Observable;
+import io.reactivex.Completable;
 import io.reactivex.android.schedulers.AndroidSchedulers;
 import io.reactivex.disposables.CompositeDisposable;
 import io.reactivex.disposables.Disposable;
+import io.reactivex.functions.Action;
 import io.reactivex.functions.Consumer;
 import io.reactivex.schedulers.Schedulers;
 
@@ -30,23 +32,17 @@ public class FaceDetector extends Detector<Face> {
 
     private DLibLandmarks68Detector dlibDetector;
 
-    private FaceData faceData;
+    private boolean isLoaded;
 
-    private boolean isFaceLoaded = false;
-    private boolean isLandmarkLoaded = false;
-
-    private CompositeDisposable compositeDisposable = new CompositeDisposable();
+    private FaceListener listener;
 
     private com.google.android.gms.vision.face.FaceDetector detector;
 
-    private FaceListener listener;
+    private FacePosition desiredPose = FacePosition.UNRECOGNIZED;
 
     private Disposable disposable;
 
     public FaceDetector(Context context) {
-
-        this.listener = listener;
-
         detector = new com.google.android.gms.vision.face.FaceDetector.Builder(context)
                 .setClassificationType(com.google.android.gms.vision.face.FaceDetector.ALL_CLASSIFICATIONS)
                 .setMode(com.google.android.gms.vision.face.FaceDetector.ACCURATE_MODE)
@@ -54,75 +50,48 @@ public class FaceDetector extends Detector<Face> {
                 .setProminentFaceOnly(true)
                 .build();
         dlibDetector = new DLibLandmarks68Detector();
-
-        compositeDisposable.add(initFaceLandmarksDetector(context)
-                .subscribeOn(Schedulers.io())
-                .observeOn(Schedulers.newThread())
-                .subscribe(new Consumer<Boolean>() {
-                    @Override
-                    public void accept(Boolean aBoolean) throws Exception {
-                        Log.d("DLIB LANDMARK", "LOADED");
-                        isLandmarkLoaded = true;
-                    }
-                }, new Consumer<Throwable>() {
-                    @Override
-                    public void accept(Throwable throwable) throws Exception {
-                        Log.d("DLIB", throwable.getLocalizedMessage());
-                    }
-                }));
-
-        compositeDisposable.add(initFaceDetector(context)
-                .subscribeOn(Schedulers.io())
-                .observeOn(Schedulers.newThread())
-                .subscribe(new Consumer<Boolean>() {
-                    @Override
-                    public void accept(Boolean aBoolean) throws Exception {
-                        Log.d("DLIB FACE", "LOADED");
-                        isFaceLoaded = true;
-                    }
-                }, new Consumer<Throwable>() {
-                    @Override
-                    public void accept(Throwable throwable) throws Exception {
-                        Log.d("DLIB", throwable.getLocalizedMessage());
-                    }
-                }));
     }
 
-    private Observable<Boolean> initFaceLandmarksDetector(final Context context) {
+    public void loadLibraries(Context context) {
+        if (!isLoaded) {
+            disposable =
+                    Completable.merge(getInitList(context))
+                            .subscribeOn(Schedulers.io())
+                            .observeOn(AndroidSchedulers.mainThread())
+                            .subscribe(() -> isLoaded = true, throwable -> Log.d("DLIB", throwable.getLocalizedMessage()));
+        }
+    }
+
+    private List<Completable> getInitList(Context context) {
+        List<Completable> completableList = new ArrayList<>();
+        completableList.add(initFaceLandmarksDetector(context));
+        completableList.add(initFaceDetector(context));
+        return completableList;
+    }
+
+    private Completable initFaceLandmarksDetector(final Context context) {
         final String targetPath = Constants.getFaceShapeModelPath();
         if (!new File(targetPath).exists()) {
-            new Handler(Looper.getMainLooper()).post(new Runnable() {
-                @Override
-                public void run() {
-                    Toast.makeText(context, "Copy landmark model to " + targetPath, Toast.LENGTH_SHORT).show();
-                }
-            });
-
             FileUtils.copyFileFromRawToOthers(context, R.raw.shape_predictor_68_face_landmarks, targetPath);
         }
         dlibDetector.prepareLandmark(targetPath);
-        return Observable.just(false);
+        Log.d("DLIB LANDMARK", "LOADED");
+        return Completable.complete();
     }
 
-    private Observable<Boolean> initFaceDetector(final Context context) {
+    private Completable initFaceDetector(final Context context) {
         final String targetPath = Constants.getFaceModelPath();
         if (!new File(targetPath).exists()) {
-            new Handler(Looper.getMainLooper()).post(new Runnable() {
-                @Override
-                public void run() {
-                    Toast.makeText(context, "Copy face model to " + targetPath, Toast.LENGTH_SHORT).show();
-                }
-            });
-
             FileUtils.copyFileFromRawToOthers(context, R.raw.dlib_face_recognition_resnet_model_v1, targetPath);
         }
         dlibDetector.prepareRecognition(targetPath);
-        return Observable.just(false);
+        Log.d("DLIB FACE DETECTOR", "LOADED");
+        return Completable.complete();
     }
 
     @Override
     public void release() {
-        compositeDisposable.dispose();
+        disposable.dispose();
         super.release();
     }
 
@@ -132,37 +101,25 @@ public class FaceDetector extends Detector<Face> {
         if (disposable == null || disposable.isDisposed()) {
             faces = detector.detect(frame);
             if (faces.size() > 0) {
-                if (faceData == null) {
-                    faceData = new FaceData(faces.get(0), frame);
-                    listener.onNewFace(faces.get(0));
-                } else {
-                    boolean found = false;
-                    for (int i = 0; i < faces.size(); i++) {
-                        int key = faces.keyAt(i);
-                        if (faces.get(key).getId() == faceData.getFace().getId()) {
-                            FacePosition pose = detectPose(faces.get(key));
-                            if (pose != FacePosition.UNRECOGNIZED) {
-                                found = true;
-                                faceData.setFace(faces.get(key));
-                                faceData.setNV21(frame.getGrayscaleImageData().array());
-                                faceData.setPosition(pose);
-                            } else listener.onUnrecognizedPose();
-                            break;
-                        }
-                    }
-                    if (found) {
-                        float[] descriptors = getDescriptor(frame, faceData.getFace());
-                        faceData.setDescriptors(descriptors);
-                    } else listener.onMissingFace();
+                Face face = faces.valueAt(0);
+                FaceData.Builder builder = FaceData.newBuilder();
+                FacePosition pose = detectPose(face);
+                builder.setFace(face);
+                builder.setNV21(frame.getGrayscaleImageData().array());
+                builder.setPosition(pose);
+                if (pose != FacePosition.UNRECOGNIZED && pose == desiredPose) {
+                    float[] descriptors = getDescriptor(frame, face);
+                    builder.setDescriptors(descriptors);
                 }
-            }
+                notifyFace(builder.build());
+            } else notifyMissingFace();
         }
         return faces;
     }
 
     @Override
     public boolean isOperational() {
-        return !isFaceLoaded && !isLandmarkLoaded && detector.isOperational();
+        return !isLoaded && detector.isOperational();
     }
 
     private float[] getDescriptor(Frame frame, Face face) {
@@ -199,7 +156,30 @@ public class FaceDetector extends Detector<Face> {
         return FacePosition.UNRECOGNIZED;
     }
 
+    private void notifyMissingFace() {
+        if (listener != null)
+            listener.onMissingFace();
+    }
+
+    private void notifyFace(FaceData data) {
+        if (listener != null)
+            listener.onFaceUpdate(data);
+    }
+
+
+    public FaceListener getListener() {
+        return listener;
+    }
+
     public void setListener(FaceListener listener) {
         this.listener = listener;
+    }
+
+    public void setDesiredPose(FacePosition pose) {
+        this.desiredPose = pose;
+    }
+
+    public boolean compareDescriptors(float[] source, float[] destination, float limit) {
+        return dlibDetector.compareDescriptors(source, destination, limit);
     }
 }

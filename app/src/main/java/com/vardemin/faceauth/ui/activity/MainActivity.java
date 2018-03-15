@@ -1,14 +1,11 @@
 package com.vardemin.faceauth.ui.activity;
 
 import android.content.Intent;
-import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
-import android.widget.Button;
-import android.widget.TextView;
+import android.support.v7.app.AppCompatActivity;
 
 import com.vardemin.faceauth.R;
 
-import butterknife.BindView;
 import butterknife.ButterKnife;
 import butterknife.OnClick;
 

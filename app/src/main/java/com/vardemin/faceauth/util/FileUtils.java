@@ -9,9 +9,6 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 
-/**
- * Created by darrenl on 2016/3/30.
- */
 public class FileUtils {
     @NonNull
     public static final void copyFileFromRawToOthers(@NonNull final Context context, @RawRes int id, @NonNull final String targetPath) {

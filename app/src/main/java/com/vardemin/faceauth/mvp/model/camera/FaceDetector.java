@@ -1,11 +1,8 @@
 package com.vardemin.faceauth.mvp.model.camera;
 
 import android.content.Context;
-import android.os.Handler;
-import android.os.Looper;
 import android.util.Log;
 import android.util.SparseArray;
-import android.widget.Toast;
 
 import com.google.android.gms.vision.Detector;
 import com.google.android.gms.vision.Frame;
@@ -22,10 +19,7 @@ import java.util.List;
 
 import io.reactivex.Completable;
 import io.reactivex.android.schedulers.AndroidSchedulers;
-import io.reactivex.disposables.CompositeDisposable;
 import io.reactivex.disposables.Disposable;
-import io.reactivex.functions.Action;
-import io.reactivex.functions.Consumer;
 import io.reactivex.schedulers.Schedulers;
 
 public class FaceDetector extends Detector<Face> {

@@ -1,6 +1,5 @@
 package com.vardemin.faceauth.data;
 
-import com.google.android.gms.vision.Frame;
 import com.google.android.gms.vision.face.Face;
 import com.vardemin.faceauth.mvp.model.camera.FacePosition;
 

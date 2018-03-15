@@ -1,6 +1,5 @@
 package com.vardemin.faceauth.mvp.model.camera;
 
-import com.my.jni.dlib.DLibLandmarks68Detector;
 import com.vardemin.faceauth.data.FaceData;
 import com.vardemin.faceauth.mvp.model.ICameraManager;
 import com.vardemin.faceauth.util.Constants;

@@ -35,6 +35,8 @@ public class ScanPresenter extends MvpPresenter<ScanView> {
 
     private Disposable disposable;
 
+    private FacePosition currentPose = FacePosition.STRAIGHT;
+
     public ScanPresenter() {
         App.getAppComponent().inject(this);
     }
@@ -52,19 +54,27 @@ public class ScanPresenter extends MvpPresenter<ScanView> {
 
     public void callReady(){
         getViewState().showWaitingDialog(true);
-        disposable = Completable.timer(500, TimeUnit.MILLISECONDS)
-                .repeatUntil(() -> getDetector().isOperational())
-                .subscribeOn(Schedulers.newThread())
-                .observeOn(AndroidSchedulers.mainThread())
-                .subscribe(() -> {
-                    getViewState().showWaitingDialog(false);
-                    startScan();
-                    getDetector().setDesiredPose(FacePosition.STRAIGHT);
-                }, throwable -> {
-                    getViewState().showWaitingDialog(false);
-                    getViewState().showMessage(throwable.getMessage());
-                });
-        getDetector().loadLibraries(App.getAppComponent().context());
+        getViewState().notifyPendingPose(FacePosition.STRAIGHT);
+        if(getDetector().isOperational()) {
+            getViewState().showWaitingDialog(false);
+            startScan();
+            getDetector().setDesiredPose(FacePosition.STRAIGHT);
+        }
+        else {
+            disposable = Completable.timer(500, TimeUnit.MILLISECONDS)
+                    .repeatUntil(() -> getDetector().isOperational())
+                    .subscribeOn(Schedulers.newThread())
+                    .observeOn(AndroidSchedulers.mainThread())
+                    .subscribe(() -> {
+                        getViewState().showWaitingDialog(false);
+                        startScan();
+                        getDetector().setDesiredPose(FacePosition.STRAIGHT);
+                    }, throwable -> {
+                        getViewState().showWaitingDialog(false);
+                        getViewState().showMessage(throwable.getMessage());
+                    });
+            getDetector().loadLibraries(App.getAppComponent().context());
+        }
     }
 
     private void startScan() {
@@ -75,13 +85,33 @@ public class ScanPresenter extends MvpPresenter<ScanView> {
     private FaceListener listener = new FaceListener() {
         @Override
         public void onMissingFace() {
-
+            getViewState().showMissingFace();
         }
 
         @Override
         public void onFaceUpdate(FaceData data) {
-
+            boolean result = cameraManager.onFaceData(data);
+            if (result) {
+                currentPose = data.getPosition();
+                onNextPose();
+            }
+            else getViewState().notifyDifferentPerson();
         }
-
     };
+
+    private void onNextPose() {
+        FacePosition pendingPose = currentPose;
+        switch (currentPose) {
+            case STRAIGHT: pendingPose = FacePosition.TOP_LEFT; break;
+            //case TOP: pendingPose = FacePosition.TOP_LEFT; break;
+            case TOP_LEFT: pendingPose = FacePosition.LEFT; break;
+            case LEFT: pendingPose = FacePosition.BOTTOM_LEFT; break;
+            case BOTTOM_LEFT: pendingPose = FacePosition.BOTTOM_RIGHT; break;
+            //case BOTTOM: pendingPose = FacePosition.BOTTOM_RIGHT; break;
+            case BOTTOM_RIGHT: pendingPose = FacePosition.RIGHT; break;
+            case RIGHT: pendingPose = FacePosition.TOP_RIGHT; break;
+        }
+        getDetector().setDesiredPose(pendingPose);
+        getViewState().notifyPendingPose(pendingPose);
+    }
 }

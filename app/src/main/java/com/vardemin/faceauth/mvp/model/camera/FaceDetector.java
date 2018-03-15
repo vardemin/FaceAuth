@@ -29,6 +29,7 @@ import io.reactivex.functions.Consumer;
 import io.reactivex.schedulers.Schedulers;
 
 public class FaceDetector extends Detector<Face> {
+    private final static String TAG = "FACE DETECTOR";
 
     private DLibLandmarks68Detector dlibDetector;
 
@@ -44,10 +45,10 @@ public class FaceDetector extends Detector<Face> {
 
     public FaceDetector(Context context) {
         detector = new com.google.android.gms.vision.face.FaceDetector.Builder(context)
-                .setClassificationType(com.google.android.gms.vision.face.FaceDetector.ALL_CLASSIFICATIONS)
+                .setClassificationType(com.google.android.gms.vision.face.FaceDetector.NO_CLASSIFICATIONS)
+                .setLandmarkType(com.google.android.gms.vision.face.FaceDetector.NO_LANDMARKS)
                 .setMode(com.google.android.gms.vision.face.FaceDetector.ACCURATE_MODE)
                 .setTrackingEnabled(true)
-                .setProminentFaceOnly(true)
                 .build();
         dlibDetector = new DLibLandmarks68Detector();
     }
@@ -119,7 +120,7 @@ public class FaceDetector extends Detector<Face> {
 
     @Override
     public boolean isOperational() {
-        return !isLoaded && detector.isOperational();
+        return isLoaded && detector.isOperational();
     }
 
     private float[] getDescriptor(Frame frame, Face face) {

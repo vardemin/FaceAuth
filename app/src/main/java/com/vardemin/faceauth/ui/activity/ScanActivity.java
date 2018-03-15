@@ -19,6 +19,7 @@ import com.google.android.gms.vision.Tracker;
 import com.google.android.gms.vision.face.Face;
 import com.vardemin.faceauth.R;
 import com.vardemin.faceauth.mvp.model.camera.FaceDetector;
+import com.vardemin.faceauth.mvp.model.camera.FacePosition;
 import com.vardemin.faceauth.mvp.presenter.ScanPresenter;
 import com.vardemin.faceauth.mvp.view.ScanView;
 import com.vardemin.faceauth.ui.graphic.FaceGraphic;
@@ -146,6 +147,35 @@ public class ScanActivity extends MvpAppCompatActivity implements ScanView {
     public void onScanStart() {
         createCameraSource();
         startCameraSource();
+    }
+
+    @Override
+    public void showMissingFace() {
+        showMessage(getString(R.string.error_missing));
+    }
+
+    @Override
+    public void notifyPendingPose(FacePosition position) {
+        String str = "";
+        switch (position) {
+            case STRAIGHT: str = getString(R.string.pose_straight); break;
+            case TOP: str = getString(R.string.pose_top); break;
+            case TOP_LEFT: str = getString(R.string.pose_top_left); break;
+            case LEFT: str = getString(R.string.pose_left); break;
+            case BOTTOM_LEFT: str = getString(R.string.pose_bottom_left); break;
+            case BOTTOM: str = getString(R.string.pose_bottom); break;
+            case BOTTOM_RIGHT: str = getString(R.string.pose_bottom_right); break;
+            case RIGHT: str = getString(R.string.pose_right); break;
+            case TOP_RIGHT: str = getString(R.string.pose_top_right); break;
+        }
+        String msg = getString(R.string.look_at) + " " + str;
+        runOnUiThread(() -> status.setText(msg));
+        //showMessage(getString(R.string.look_at) + " " + position.getDesription(this));
+    }
+
+    @Override
+    public void notifyDifferentPerson() {
+        showMessage(getString(R.string.error_person));
     }
 
     private class GraphicPoseTrackerFactory implements MultiProcessor.Factory<Face> {

@@ -5,4 +5,16 @@
 
     <string name="title_activity_splash" translatable="false">SplashActivity</string>
     <string name="title">Face Auth</string>
+    <string name="pose_straight">Straight</string>
+    <string name="pose_top">Top</string>
+    <string name="pose_top_left">Top-Left</string>
+    <string name="pose_left">Left</string>
+    <string name="pose_bottom_left">Bottom-Left</string>
+    <string name="pose_bottom">Bottom</string>
+    <string name="pose_bottom_right">Bottom-Right</string>
+    <string name="pose_right">Right</string>
+    <string name="pose_top_right">Top-Right</string>
+    <string name="look_at">Look at</string>
+    <string name="error_person">Different person</string>
+    <string name="error_missing">Missing face</string>
 </resources>

@@ -2,4 +2,16 @@
 <resources>
     <string name="app_name">FaceAuth</string>
     <string name="title">Аутентификатор</string>
+    <string name="pose_straight">Прямо</string>
+    <string name="pose_top">Вверх</string>
+    <string name="pose_top_left">Левый верхний угол</string>
+    <string name="pose_left">Влево</string>
+    <string name="pose_bottom_left">Нижний левый угол</string>
+    <string name="pose_bottom">Вниз</string>
+    <string name="pose_bottom_right">Нижний правый угол</string>
+    <string name="pose_right">Вправо</string>
+    <string name="pose_top_right">Верхний правый угол</string>
+    <string name="look_at">Смотрите</string>
+    <string name="error_person">Другой человек</string>
+    <string name="error_missing">Лицо не найдено</string>
 </resources>

@@ -23,15 +23,18 @@ public class CameraManager implements ICameraManager {
 
     @Override
     public boolean onFaceData(FaceData data) {
-        if(lastDescriptors == null) {
-            lastDescriptors = data.getDescriptors();
-            return true;
+        float[] descriptors = data.getDescriptors();
+        if (descriptors != null) {
+            if (lastDescriptors == null) {
+                lastDescriptors = descriptors;
+                return true;
+            } else {
+                boolean result = detector.compareDescriptors(lastDescriptors, descriptors, Constants.FACE_SIMILAR_LIMIT);
+                lastDescriptors = descriptors;
+                return result;
+            }
         }
-        else {
-            boolean result = detector.compareDescriptors(lastDescriptors, data.getDescriptors(), Constants.FACE_SIMILAR_LIMIT);
-            lastDescriptors = data.getDescriptors();
-            return result;
-        }
+        return false;
     }
 
     @Override

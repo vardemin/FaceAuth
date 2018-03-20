@@ -9,4 +9,5 @@ public interface ICameraManager {
 
     boolean onFaceData(FaceData data);
     void resetScan();
+    void setTracking(boolean state);
 }

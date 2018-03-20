@@ -40,4 +40,9 @@ public class CameraManager implements ICameraManager {
     public void resetScan() {
         lastDescriptors = null;
     }
+
+    @Override
+    public void setTracking(boolean state) {
+        detector.setTracking(state);
+    }
 }

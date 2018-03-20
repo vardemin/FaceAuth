@@ -218,6 +218,7 @@ public class ScanActivity extends MvpAppCompatActivity implements ScanView {
          */
         @Override
         public void onMissing(FaceDetector.Detections<Face> detectionResults) {
+            ScanActivity.this.showMissingFace();
             overlay.remove(faceGraphic);
         }
 

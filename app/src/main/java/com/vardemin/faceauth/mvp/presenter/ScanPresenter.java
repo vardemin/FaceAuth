@@ -80,10 +80,6 @@ public class ScanPresenter extends MvpPresenter<ScanView> {
     }
 
     private FaceListener listener = new FaceListener() {
-        @Override
-        public void onMissingFace() {
-            getViewState().showMissingFace();
-        }
 
         @Override
         public void onFaceUpdate(FaceData data) {

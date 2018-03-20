@@ -37,6 +37,12 @@ public class FaceDetector extends Detector<Face> {
 
     private Disposable disposable;
 
+    private boolean isAllowed = false;
+
+    public void setTracking(boolean state) {
+        isAllowed = state;
+    }
+
     public FaceDetector(Context context) {
         detector = new com.google.android.gms.vision.face.FaceDetector.Builder(context)
                 .setClassificationType(com.google.android.gms.vision.face.FaceDetector.NO_CLASSIFICATIONS)
@@ -93,21 +99,23 @@ public class FaceDetector extends Detector<Face> {
     @Override
     public SparseArray<Face> detect(Frame frame) {
         SparseArray<Face> faces = new SparseArray<>();
-        if (disposable == null || disposable.isDisposed()) {
-            faces = detector.detect(frame);
-            if (faces.size() > 0) {
-                Face face = faces.valueAt(0);
-                FaceData.Builder builder = FaceData.newBuilder();
-                FacePosition pose = detectPose(face);
-                builder.setFace(face);
-                builder.setNV21(frame.getGrayscaleImageData().array());
-                builder.setPosition(pose);
-                if (pose != FacePosition.UNRECOGNIZED && pose == desiredPose) {
-                    float[] descriptors = getDescriptor(frame, face);
-                    builder.setDescriptors(descriptors);
+        if (isAllowed) {
+            if (disposable == null || disposable.isDisposed()) {
+                faces = detector.detect(frame);
+                if (faces.size() > 0) {
+                    Face face = faces.valueAt(0);
+                    FaceData.Builder builder = FaceData.newBuilder();
+                    FacePosition pose = detectPose(face);
+                    builder.setFace(face);
+                    builder.setNV21(frame.getGrayscaleImageData().array());
+                    builder.setPosition(pose);
+                    //if (pose != FacePosition.UNRECOGNIZED && pose == desiredPose) {
+                        float[] descriptors = getDescriptor(frame, face);
+                        builder.setDescriptors(descriptors);
+                    //}
+                    notifyFace(builder.build());
                 }
-                notifyFace(builder.build());
-            } else notifyMissingFace();
+            }
         }
         return faces;
     }
@@ -149,11 +157,6 @@ public class FaceDetector extends Detector<Face> {
                 return FacePosition.TOP_LEFT;
         }
         return FacePosition.UNRECOGNIZED;
-    }
-
-    private void notifyMissingFace() {
-        if (listener != null)
-            listener.onMissingFace();
     }
 
     private void notifyFace(FaceData data) {

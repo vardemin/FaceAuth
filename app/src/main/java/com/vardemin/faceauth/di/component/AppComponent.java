@@ -8,6 +8,7 @@ import com.vardemin.faceauth.di.module.DetectorModule;
 import com.vardemin.faceauth.mvp.model.ICameraManager;
 import com.vardemin.faceauth.mvp.model.ILocalRepository;
 import com.vardemin.faceauth.mvp.model.camera.FaceDetector;
+import com.vardemin.faceauth.mvp.presenter.InitPresenter;
 import com.vardemin.faceauth.mvp.presenter.ScanPresenter;
 
 import javax.inject.Singleton;
@@ -23,4 +24,6 @@ public interface AppComponent {
     FaceDetector detector();
 
     void inject(ScanPresenter presenter);
+
+    void inject(InitPresenter initPresenter);
 }

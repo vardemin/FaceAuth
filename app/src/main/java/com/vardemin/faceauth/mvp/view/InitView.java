@@ -1,7 +1,5 @@
 package com.vardemin.faceauth.mvp.view;
 
-import android.support.annotation.UiThread;
-
 import com.arellomobile.mvp.viewstate.strategy.AddToEndSingleStrategy;
 import com.arellomobile.mvp.viewstate.strategy.StateStrategyType;
 

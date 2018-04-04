@@ -39,4 +39,11 @@ public class MainActivity extends AppCompatActivity {
         startActivityForResult(intent, REQUEST_CODE);
     }
 
+    @OnClick(R.id.btn_scan)
+    void onBtnScan() {
+        //startActivity(new Intent(this, ScanActivity.class));
+        Intent intent = new Intent(this, ScanActivity.class);
+        intent.putExtra("json", "{id:'test123', application:'storonnee', user:'vasya'}");
+        startActivityForResult(intent, REQUEST_CODE);
+    }
 }

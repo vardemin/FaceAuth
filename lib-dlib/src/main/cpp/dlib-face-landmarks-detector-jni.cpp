@@ -495,3 +495,25 @@ JNI_METHOD(compareDescriptors)(JNIEnv *env,
     return (jboolean) (length(dst - src) < limit);
 }
 
+extern "C" JNIEXPORT jfloat JNICALL
+JNI_METHOD(getSimilarity)(JNIEnv *env,
+                               jobject thiz,
+                               jfloatArray source,
+                               jfloatArray dest) {
+    float *_src = env->GetFloatArrayElements(source, 0);
+    float *_dst = env->GetFloatArrayElements(dest, 0);
+
+    matrix<float, 128, 1> src;
+    matrix<float, 128, 1> dst;
+
+    for (int i = 0; i < 128; i++) {
+        src(i, 1) = _src[i];
+        dst(i, 1) = _dst[1];
+    }
+
+    env->ReleaseFloatArrayElements(source, _src, 0);
+    env->ReleaseFloatArrayElements(dest, _dst, 0);
+
+    return length(dst - src);
+}
+

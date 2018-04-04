@@ -2,9 +2,13 @@ package com.vardemin.faceauth.ui.activity;
 
 import android.app.Dialog;
 import android.content.Context;
+import android.content.Intent;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.support.design.widget.Snackbar;
 import android.util.Log;
+import android.widget.Button;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -30,11 +34,15 @@ import java.io.IOException;
 
 import butterknife.BindView;
 import butterknife.ButterKnife;
+import butterknife.OnClick;
 
 public class ScanActivity extends MvpAppCompatActivity implements ScanView {
 
     private static final String TAG = "SCAN_ACTIVITY";
     private static final int RC_HANDLE_GMS = 9001;
+
+    @BindView(R.id.btn_capture)
+    Button btnCapture;
 
     @BindView(R.id.preview)
     CameraSourcePreview preview;
@@ -42,15 +50,13 @@ public class ScanActivity extends MvpAppCompatActivity implements ScanView {
     @BindView(R.id.overlay)
     GraphicOverlay overlay;
 
-    @BindView(R.id.tv_status)
-    TextView status;
-
     @InjectPresenter(tag = ScanPresenter.TAG)
     ScanPresenter presenter;
 
     private CameraSource cameraSource = null;
 
     private Snackbar waitingSnackbar;
+    private Handler handler;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -61,8 +67,22 @@ public class ScanActivity extends MvpAppCompatActivity implements ScanView {
         waitingSnackbar = Snackbar.make(findViewById(android.R.id.content), "Loading libraries...", Snackbar.LENGTH_INDEFINITE);
         Snackbar.SnackbarLayout snack_view = (Snackbar.SnackbarLayout) waitingSnackbar.getView();
         snack_view.addView(new ProgressBar(this));
+        Intent intent = getIntent();
+        String json = getIntent().getStringExtra("json");
+        if (json != null) {
+            presenter.callReady();
+            presenter.callOnJSON(json);
+        } else onResult("{message: 'no json parameter', result: false}");
 
-        presenter.callReady();
+        handler= new Handler(Looper.getMainLooper());
+    }
+
+    @Override
+    public void onResult(String json) {
+        Intent intent = new Intent();
+        intent.putExtra("json", json);
+        setResult(RESULT_OK, intent);
+        finish();
     }
 
     @Override
@@ -136,47 +156,27 @@ public class ScanActivity extends MvpAppCompatActivity implements ScanView {
     }
 
     @Override
-    public void showWaitingDialog(boolean state) {
-        if (state) {
-            waitingSnackbar.show();
-        }
-        else waitingSnackbar.dismiss();
-    }
-
-    @Override
     public void onScanStart() {
         createCameraSource();
         startCameraSource();
     }
 
     @Override
-    public void showMissingFace() {
-        showMessage(getString(R.string.error_missing));
+    public void onMissingFace() {
+        handler.post(() -> btnCapture.setEnabled(false));
     }
 
     @Override
-    public void notifyPendingPose(FacePosition position) {
-        String str = "";
-        switch (position) {
-            case STRAIGHT: str = getString(R.string.pose_straight); break;
-            case TOP: str = getString(R.string.pose_top); break;
-            case TOP_LEFT: str = getString(R.string.pose_top_left); break;
-            case LEFT: str = getString(R.string.pose_left); break;
-            case BOTTOM_LEFT: str = getString(R.string.pose_bottom_left); break;
-            case BOTTOM: str = getString(R.string.pose_bottom); break;
-            case BOTTOM_RIGHT: str = getString(R.string.pose_bottom_right); break;
-            case RIGHT: str = getString(R.string.pose_right); break;
-            case TOP_RIGHT: str = getString(R.string.pose_top_right); break;
-        }
-        String msg = getString(R.string.look_at) + " " + str;
-        runOnUiThread(() -> status.setText(msg));
-        //showMessage(getString(R.string.look_at) + " " + position.getDesription(this));
+    public void onFace() {
+        handler.post(() -> btnCapture.setEnabled(true));
     }
 
-    @Override
-    public void notifyDifferentPerson() {
-        showMessage(getString(R.string.error_person));
+    @OnClick(R.id.btn_capture)
+    public void onCapture() {
+        presenter.startTracking();
+        btnCapture.setEnabled(false);
     }
+
 
     private class GraphicPoseTrackerFactory implements MultiProcessor.Factory<Face> {
         @Override
@@ -200,6 +200,7 @@ public class ScanActivity extends MvpAppCompatActivity implements ScanView {
         @Override
         public void onNewItem(int faceId, Face item) {
             faceGraphic.setId(faceId);
+            ScanActivity.this.onFace();
         }
 
         /**
@@ -218,7 +219,7 @@ public class ScanActivity extends MvpAppCompatActivity implements ScanView {
          */
         @Override
         public void onMissing(FaceDetector.Detections<Face> detectionResults) {
-            ScanActivity.this.showMissingFace();
+            ScanActivity.this.onMissingFace();
             overlay.remove(faceGraphic);
         }
 

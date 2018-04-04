@@ -5,12 +5,14 @@ import android.os.Handler;
 import android.os.Looper;
 import android.provider.Settings;
 
+import com.vardemin.faceauth.data.DataModel;
 import com.vardemin.faceauth.mvp.model.ILocalRepository;
 
 import java.util.List;
 
 import io.realm.Realm;
 import io.realm.RealmConfiguration;
+import io.realm.RealmModel;
 import io.realm.RealmObject;
 
 public class LocalRepository implements ILocalRepository {
@@ -69,6 +71,11 @@ public class LocalRepository implements ILocalRepository {
             }
             realm.commitTransaction();
         });
+    }
+
+    @Override
+    public <E extends RealmModel> E findObjectById(Class<E> _type, String id) {
+        return realm.where(_type).equalTo("id", id).findFirst();
     }
 
 }

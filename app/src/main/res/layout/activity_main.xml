@@ -18,20 +18,19 @@
         android:drawableLeft="@drawable/ic_add"
         android:layout_margin="10dp"/>
     <Button
-        android:id="@+id/btn_edit"
+        android:id="@+id/btn_scan"
         android:layout_width="match_parent"
         android:layout_height="50dp"
         style="@style/Base.Widget.AppCompat.Button.Borderless.Colored"
-        android:text="Edit config"
-        android:layout_margin="10dp"
-        android:drawableLeft="@drawable/ic_edit" />
+        android:text="Start test scan"
+        android:layout_margin="10dp" />
 
     <Button
         android:id="@+id/btn_start"
         android:layout_width="match_parent"
         android:layout_height="50dp"
         style="@style/Base.Widget.AppCompat.Button.Borderless.Colored"
-        android:text="Start test scan"
+        android:text="Start test init"
         android:layout_margin="10dp" />
 
 

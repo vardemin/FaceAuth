@@ -7,7 +7,7 @@ import com.vardemin.faceauth.mvp.model.camera.FaceListener;
 public interface ICameraManager {
     FaceDetector getDetector();
 
-    boolean onFaceData(FaceData data);
+    boolean onFaceData(FaceData data, float[] original);
     void resetScan();
     void setTracking(boolean state);
 }

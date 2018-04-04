@@ -98,10 +98,9 @@ public class FaceDetector extends Detector<Face> {
 
     @Override
     public SparseArray<Face> detect(Frame frame) {
-        SparseArray<Face> faces = new SparseArray<>();
+        SparseArray<Face> faces = detector.detect(frame);
         if (isAllowed) {
             if (disposable == null || disposable.isDisposed()) {
-                faces = detector.detect(frame);
                 if (faces.size() > 0) {
                     Face face = faces.valueAt(0);
                     FaceData.Builder builder = FaceData.newBuilder();
@@ -179,5 +178,9 @@ public class FaceDetector extends Detector<Face> {
 
     public boolean compareDescriptors(float[] source, float[] destination, float limit) {
         return dlibDetector.compareDescriptors(source, destination, limit);
+    }
+
+    public float getSimilarity(float[] source, float[] destination) {
+        return dlibDetector.getSimilarity(source, destination);
     }
 }

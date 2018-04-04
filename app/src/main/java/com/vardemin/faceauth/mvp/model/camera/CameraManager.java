@@ -1,5 +1,7 @@
 package com.vardemin.faceauth.mvp.model.camera;
 
+import android.util.Log;
+
 import com.vardemin.faceauth.data.FaceData;
 import com.vardemin.faceauth.mvp.model.ICameraManager;
 import com.vardemin.faceauth.util.Constants;
@@ -21,8 +23,8 @@ public class CameraManager implements ICameraManager {
     }
 
     @Override
-    public boolean onFaceData(FaceData data) {
-        float[] descriptors = data.getDescriptors();
+    public boolean onFaceData(FaceData data, float[] original) {
+        /*float[] descriptors = data.getDescriptors();
         if (descriptors != null) {
             if (lastDescriptors == null) {
                 lastDescriptors = descriptors;
@@ -33,7 +35,10 @@ public class CameraManager implements ICameraManager {
                 return result;
             }
         }
-        return false;
+        return false;*/
+        float similarity = detector.getSimilarity(original, data.getDescriptors());
+        Log.d("SIMILARITY", String.valueOf(similarity));
+        return similarity < Constants.FACE_SIMILAR_LIMIT;
     }
 
     @Override

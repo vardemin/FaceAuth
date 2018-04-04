@@ -142,7 +142,6 @@ public class InitActivity extends MvpAppCompatActivity implements InitView {
     public void onScanStart() {
         createCameraSource();
         startCameraSource();
-        presenter.startTracking();
     }
 
     @Override
@@ -211,6 +210,7 @@ public class InitActivity extends MvpAppCompatActivity implements InitView {
 
     @OnClick(R.id.btn_capture)
     void onCapture() {
+        presenter.startTracking();
         btnCapture.setEnabled(false);
     }
 
@@ -221,6 +221,7 @@ public class InitActivity extends MvpAppCompatActivity implements InitView {
         }
         presenter.callSaveData(true);
     }
+
 
     private void generateInputFields(List<FieldModel> fields) {
         for (FieldModel model : fields) {

@@ -94,4 +94,6 @@ public class DLibLandmarks68Detector {
                                            long bottom);
 
     public native boolean compareDescriptors(float[] source, float[] destination, float limit);
+
+    public native float getSimilarity(float[] source, float[] destination);
 }

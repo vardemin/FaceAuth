@@ -4,29 +4,33 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:keepScreenOn="true"
-    tools:context="com.vardemin.faceauth.ui.activity.ScanActivity">
+    tools:context="com.vardemin.faceauth.ui.activity.InitActivity">
 
-    <com.vardemin.faceauth.ui.view.CameraSourcePreview
-        android:id="@+id/preview"
+    <RelativeLayout
+        android:id="@+id/scan_layout"
         android:layout_width="match_parent"
         android:layout_height="match_parent">
-
-        <com.vardemin.faceauth.ui.view.GraphicOverlay
-            android:id="@+id/overlay"
+        <com.vardemin.faceauth.ui.view.CameraSourcePreview
+            android:id="@+id/preview"
             android:layout_width="match_parent"
-            android:layout_height="match_parent" />
+            android:layout_height="match_parent">
 
-    </com.vardemin.faceauth.ui.view.CameraSourcePreview>
+            <com.vardemin.faceauth.ui.view.GraphicOverlay
+                android:id="@+id/overlay"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent" />
 
-    <TextView
-        android:id="@+id/tv_status"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="GET READY"
-        android:padding="10dp"
-        android:textAlignment="center"
-        android:textAppearance="@style/Base.TextAppearance.AppCompat.Title.Inverse"
-        android:background="@color/black_overlay"/>
+        </com.vardemin.faceauth.ui.view.CameraSourcePreview>
+
+        <android.support.v7.widget.AppCompatButton
+            android:id="@+id/btn_capture"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="@android:color/white"
+            android:text="Capture"
+            android:enabled="false"
+            android:layout_alignParentBottom="true"
+            android:layout_margin="15dp"/>
+    </RelativeLayout>
 
 </RelativeLayout>

@@ -6,18 +6,16 @@ import com.arellomobile.mvp.viewstate.strategy.StateStrategyType;
 import com.vardemin.faceauth.mvp.model.camera.FacePosition;
 
 public interface ScanView extends BaseView {
-    @StateStrategyType(AddToEndSingleStrategy.class)
-    void showWaitingDialog(boolean state);
 
     @StateStrategyType(AddToEndSingleStrategy.class)
     void onScanStart();
 
     @StateStrategyType(AddToEndSingleStrategy.class)
-    void showMissingFace();
+    void onMissingFace();
 
     @StateStrategyType(AddToEndSingleStrategy.class)
-    void notifyPendingPose(FacePosition position);
+    void onFace();
 
-    @StateStrategyType(SkipStrategy.class)
-    void notifyDifferentPerson();
+    @StateStrategyType(AddToEndSingleStrategy.class)
+    void onResult(String json);
 }

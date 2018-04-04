@@ -7,7 +7,6 @@ import com.vardemin.faceauth.data.DataModel;
 import com.vardemin.faceauth.data.FaceData;
 import com.vardemin.faceauth.data.FaceModel;
 import com.vardemin.faceauth.data.FieldModel;
-import com.vardemin.faceauth.di.module.DataModule;
 import com.vardemin.faceauth.mvp.model.ICameraManager;
 import com.vardemin.faceauth.mvp.model.ILocalRepository;
 import com.vardemin.faceauth.mvp.model.camera.FaceDetector;
@@ -19,11 +18,9 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
-import java.util.logging.Handler;
 
 import javax.inject.Inject;
 

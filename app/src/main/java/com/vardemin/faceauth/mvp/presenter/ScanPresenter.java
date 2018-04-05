@@ -89,7 +89,7 @@ public class ScanPresenter extends MvpPresenter<ScanView> {
             String user = object.getString("user");
             dataModel = localRepository.findObjectById(DataModel.class, id);
             List<Float> _descriptors = dataModel.getFace().getDescriptors();
-            float[] descriptors = new float[_descriptors.size()];
+            descriptors = new float[_descriptors.size()];
             for (int i=0; i<descriptors.length; i++) {
                 descriptors[i] = _descriptors.get(i);
             }

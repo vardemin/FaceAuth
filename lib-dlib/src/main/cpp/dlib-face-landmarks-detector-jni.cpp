@@ -486,7 +486,7 @@ JNI_METHOD(compareDescriptors)(JNIEnv *env,
 
     for (int i = 0; i < 128; i++) {
         src(i, 1) = _src[i];
-        dst(i, 1) = _dst[1];
+        dst(i, 1) = _dst[i];
     }
 
     env->ReleaseFloatArrayElements(source, _src, 0);
@@ -500,15 +500,25 @@ JNI_METHOD(getSimilarity)(JNIEnv *env,
                                jobject thiz,
                                jfloatArray source,
                                jfloatArray dest) {
-    float *_src = env->GetFloatArrayElements(source, 0);
-    float *_dst = env->GetFloatArrayElements(dest, 0);
+    jfloat* _src = env->GetFloatArrayElements(source, 0);
+    jfloat* _dst = env->GetFloatArrayElements(dest, 0);
+
+    /*dlib::array<float> d_src = dlib::array<float>();
+    dlib::array<float> d_dst = dlib::array<float>();
+
+    for (long i = 0; i < 128; ++i) {
+        d_src.push_back(_src[1]);
+        d_dst.push_back(_)
+    }
+    auto float_mat = mat(float_array);
+    auto float_matrix = matrix<float, 0, 1>(float_mat);*/
 
     matrix<float, 128, 1> src;
     matrix<float, 128, 1> dst;
 
     for (int i = 0; i < 128; i++) {
         src(i, 1) = _src[i];
-        dst(i, 1) = _dst[1];
+        dst(i, 1) = _dst[i];
     }
 
     env->ReleaseFloatArrayElements(source, _src, 0);

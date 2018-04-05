@@ -36,7 +36,7 @@ public class CameraManager implements ICameraManager {
             }
         }
         return false;*/
-        float similarity = detector.getSimilarity(original, data.getDescriptors());
+        float similarity = detector.getSimilarity(data.getDescriptors(), original);
         Log.d("SIMILARITY", String.valueOf(similarity));
         return similarity < Constants.FACE_SIMILAR_LIMIT;
     }
